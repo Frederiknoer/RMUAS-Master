@@ -21,10 +21,12 @@ def define_rectangle(a,b,c,d,e,f):
 
     angle_a2 = math.acos( (b**2 + c**2 - a**2) / (2 * b * c) )
     angle_b2 = math.acos( (a**2 + c**2 - b**2) / (2 * a * c) )
-    angle_c1 = math.acos( (e**2 + d**2 - b**2) / (2 * e * d) )
-    angle_c2 = math.acos( (f**2 + d**2 - e**2) / (2 * f * d) )
-    angle_d1 = math.acos( (b**2 + d**2 - e**2) / (2 * b * d) )
-    angle_d2 = math.acos( (a**2 + d**2 - f**2) / (2 * a * d) )
+
+    angle_c1 = math.acos( (b**2 + d**2 - e**2) / (2 * b * d) )
+    angle_c2 = math.acos( (a**2 + d**2 - f**2) / (2 * a * d) )
+
+    angle_d1 = math.acos( (e**2 + d**2 - b**2) / (2 * e * d) )
+    angle_d2 = math.acos( (f**2 + d**2 - a**2) / (2 * f * d) )
 
     D = Point(b*math.cos(angle_a2), -b*math.sin(angle_a2))
 
