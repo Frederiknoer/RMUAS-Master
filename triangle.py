@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def define_triangle(a,b,c):
-
     angle_a = math.acos( (b**2 + c**2 - a**2) / (2 * b * c) )
     angle_b = math.acos( (a**2 + c**2 - b**2) / (2 * a * c) )
     angle_c = math.acos( (a**2 + b**2 - c**2) / (2 * a * b) )
@@ -33,7 +32,6 @@ def define_rectangle(a,b,c,d,e,f):
     return A,B,C,D
 
 def plot_points(x,y):
-
     plt.scatter(x,y)
     plt.show()
 
