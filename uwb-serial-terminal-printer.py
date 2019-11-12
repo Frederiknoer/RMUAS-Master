@@ -3,7 +3,9 @@
 import serial
 import csv
 
-ser = serial.Serial('/dev/ttyUSB0', 115200)
+baud = 9600 #115200
+
+ser = serial.Serial('/dev/ttyUSB0', baud)
 
 while True:
     data = ser.readline()
