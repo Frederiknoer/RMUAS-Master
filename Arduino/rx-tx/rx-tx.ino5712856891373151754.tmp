@@ -38,12 +38,12 @@ void setup()
   DW1000.attachReceivedHandler(handleReceived);
   DW1000.attachReceiveFailedHandler(handleError);
   DW1000.attachErrorHandler(handleError);
-  receiver();
 
   // attach callback for (successfully) sent messages
   DW1000.attachSentHandler(handleSent);
-  transmitter();
 
+  transmitter();
+  receiver();
 }
 
 // **********  RECEIVER FUCNTIONS ***************
@@ -85,6 +85,7 @@ void transmitter() {
 
 void loop() 
 {
+  Serial.print("...");
   //******* TRANSMITTER LOOP *********
   if (!sentAck) {
     return;
