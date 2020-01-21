@@ -96,10 +96,7 @@ class uwb_agent:
         A     B
            D
         '''
-        range_list = np.array([])
         temp_pair = []
-        #print(self.pairs)
-
         for i in range((self.pairs.shape[0] - 1)):
             temp_pair = [self.pairs[i][0], self.pairs[i][1], self.pairs[i][2]]
 
@@ -125,14 +122,15 @@ class uwb_agent:
                     d = temp_pair[2]
 
 
-        angle_a = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
+        angle_a1 = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
+        angle_a2 = math.acos(self.clean_cos( (e**2 + c**2 - f**2) / (2 * e * c) ))
         angle_b = math.acos(self.clean_cos( (a**2 + c**2 - b**2) / (2 * a * c) ))
         angle_c = math.acos(self.clean_cos( (a**2 + b**2 - c**2) / (2 * a * b) ))
 
         A = np.array([0.0, 0.0, 0.0])
         B = np.array([c, 0.0, 0.0])
-        C = np.array([b*math.cos(angle_a), b*math.sin(angle_a), 0.0])
-        D = np.array([e*math.cos(angle_a), -e*math.sin(angle_a), 0.0])
+        C = np.array([b*math.cos(angle_a1), b*math.sin(angle_a1), 0.0])
+        D = np.array([e*math.cos(angle_a2), -e*math.sin(angle_a2), 0.0])
 
         self.poslist = A,B,C,D
         return A, B, C, D

@@ -71,9 +71,9 @@ att_0 = np.array([0.0, 0.0, 0.0])
 pqr_0 = np.array([0.0, 0.0, 0.0])
 
 xyz0_0 = np.array([0.0, 0.0, 0.0])
-xyz1_0 = np.array([5.0, 0.0, 0.0])
-xyz2_0 = np.array([3.0, 4.5, 0.0])
-xyz3_0 = np.array([3.0, -4.5, 0.0])
+xyz1_0 = np.array([7.0, 0.0, 0.0])
+xyz2_0 = np.array([3.5, 6.5, 0.0])
+xyz3_0 = np.array([3.0, -7.5, 0.0])
 xyz_uav_0 = np.array([2.0, 1.5, 15.0])
 
 v_ned_0 = np.array([0.0, 0.0, 0.0])
