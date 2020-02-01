@@ -12,6 +12,7 @@ import math
 import numpy as np
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
+import sympy as sp
 
 DEBUG = False
 
@@ -88,6 +89,24 @@ class uwb_agent:
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
 
+    def calc_spheres(self, sphere_list):
+        #Sphere = x_pos, y_pos, z_pos, radius
+        #Sphere eq: (x - x_0)^2 + (y - y_0)^2 + (z - z_0)^2 = r^2
+        x,y,z = sp.symbols('x y z')
+        eq_list = np.array([])
+
+        for i, sph in enumerate(sphere_list):
+            eq_list = np.append(eq_list, sp.Eq( (x - sph[0])**2 + (y - sph[1])**2 + (z - sph[2])**2, sph[3]**2 ) )
+
+        #print("eq_list: ")
+        #print(eq_list)
+
+        result = sp.solve(eq_list, (x,y,z))
+        print("sphere point: ")
+        print(result)
+        return result
+
+
 
     def define_ground_plane(self):
         '''
@@ -97,6 +116,7 @@ class uwb_agent:
            D
         '''
         temp_pair = []
+        #print(self.pairs)
         for i in range((self.pairs.shape[0] - 1)):
             temp_pair = [self.pairs[i][0], self.pairs[i][1], self.pairs[i][2]]
 
@@ -116,12 +136,10 @@ class uwb_agent:
                 elif temp_pair[abs(idx1-1)] == 3:
                     f = temp_pair[2]
 
-            elif 2 in temp_pair[0:2]:
-                idx1 = temp_pair[0:2].index(2)
-                if temp_pair[abs(idx1-1)] == 3:
-                    d = temp_pair[2]
+            else:
+                d = temp_pair[2]
 
-
+        range_list = np.array([a,b,c,d,e,f])
         angle_a1 = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
         angle_a2 = math.acos(self.clean_cos( (e**2 + c**2 - f**2) / (2 * e * c) ))
         angle_b = math.acos(self.clean_cos( (a**2 + c**2 - b**2) / (2 * a * c) ))
@@ -132,8 +150,35 @@ class uwb_agent:
         C = np.array([b*math.cos(angle_a1), b*math.sin(angle_a1), 0.0])
         D = np.array([e*math.cos(angle_a2), -e*math.sin(angle_a2), 0.0])
 
-        self.poslist = A,B,C,D
+        self.poslist = np.array([A,B,C,D])
         return A, B, C, D
+
+    def define_h_triangle(self):
+        for i in range((self.pairs.shape[0] - 1)):
+            pair = [self.pairs[i][0], self.pairs[i][1]]
+            if self.id in pair:
+                idx = pair.index(self.id)
+                if temp_pair[abs(idx1-1)] == 0:
+                    v_a = self.pairs[i][2]
+                if temp_pair[abs(idx1-1)] == 1:
+                    v_b = self.pairs[i][2]
+                if temp_pair[abs(idx1-1)] == 2:
+                    v_c = self.pairs[i][2]
+                if temp_pair[abs(idx1-1)] == 3:
+                    v_d = self.pairs[i][2]
+
+        v_range_list = np.array([v_a, v_b, v_c, v_d])
+        a,b,c,d,e,f,d = self.range_list
+        '''
+          UAV
+
+        A     B
+        '''
+        angle_v_a = math.acos(self.clean_cos( (v_a**2 + c**2 - v_b**2) / (2 * v_a * c) ))
+        UAV_alt = v_a*math.sin(angle_v_a)
+
+
+
 
 
     def define_triangle(self):

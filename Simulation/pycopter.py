@@ -3,6 +3,7 @@ import matplotlib.pyplot as pl
 import numpy as np
 import math
 import sys
+import random
 
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
@@ -74,7 +75,7 @@ xyz0_0 = np.array([0.0, 0.0, 0.0])
 xyz1_0 = np.array([7.0, 0.0, 0.0])
 xyz2_0 = np.array([3.5, 6.5, 0.0])
 xyz3_0 = np.array([3.0, -7.5, 0.0])
-xyz_uav_0 = np.array([2.0, 1.5, 15.0])
+xyz_uav_0 = np.array([2.0, 1.5, 0.0])
 
 v_ned_0 = np.array([0.0, 0.0, 0.0])
 w_0 = np.array([0.0, 0.0, 0.0, 0.0])
@@ -103,9 +104,11 @@ it = 0
 frames = 100
 
 # Data log
-q1_log = quadlog.quadlog(time)
-q2_log = quadlog.quadlog(time)
-q3_log = quadlog.quadlog(time)
+uwb0_log = quadlog.quadlog(time)
+uwb1_log = quadlog.quadlog(time)
+uwb2_log = quadlog.quadlog(time)
+uwb3_log = quadlog.quadlog(time)
+UAV_log = quadlog.quadlog(time)
 Ed_log = np.zeros((time.size, 3))
 
 # Plots
@@ -142,6 +145,7 @@ RA3 = range_agent.uwb_agent( ID=3 )
 UAV_agent = range_agent.uwb_agent( ID=10 )
 
 for t in time:
+    '''
     UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
     UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
     UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
@@ -157,7 +161,15 @@ for t in time:
     UAV_agent.handle_other_msg(Id1=RA2.id, Id2=RA3.id, range=get_dist(uwb2.xyz, uwb3.xyz))
 
     A,B,C,D = UAV_agent.define_ground_plane()
-    print (A, B, C, D)
+    #print (A, B, C, D)
+    sph_list = np.array([[A[0], A[1], A[2], get_dist(UAV.xyz, uwb0.xyz)],
+                         [B[0], B[1], B[2], get_dist(UAV.xyz, uwb1.xyz)],
+                         [C[0], C[1], C[2], get_dist(UAV.xyz, uwb2.xyz)],
+                         [D[0], D[1], D[2], get_dist(UAV.xyz, uwb3.xyz)]])
+    UAV_agent.calc_spheres(sph_list)
+    '''
+
+    UAV.set_v_2D_alt_lya([random.uniform(-2.0,2.0), random.uniform(-2.0,2.0)], -10)
 
 
     uwb0.step(dt)
@@ -168,12 +180,11 @@ for t in time:
 
     # Animation
     if it%frames == 0:
-
         pl.figure(0)
         axis3d.cla()
         ani.draw3d(axis3d, uwb0.xyz, uwb0.Rot_bn(), quadcolor[0])
-        ani.draw3d(axis3d, uwb1.xyz, uwb1.Rot_bn(), quadcolor[1])
-        ani.draw3d(axis3d, uwb2.xyz, uwb2.Rot_bn(), quadcolor[2])
+        ani.draw3d(axis3d, uwb1.xyz, uwb1.Rot_bn(), quadcolor[0])
+        ani.draw3d(axis3d, uwb2.xyz, uwb2.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, UAV.xyz, UAV.Rot_bn(), quadcolor[1])
         axis3d.set_xlim(-15, 15)
@@ -191,32 +202,38 @@ for t in time:
         #    namepic = '0' + namepic
         #pl.savefig("./images/%s.png"%namepic)
 
-    '''
+
     # Log
-    q1_log.xyz_h[it, :] = q1.xyz
-    q1_log.att_h[it, :] = q1.att
-    q1_log.w_h[it, :] = q1.w
-    q1_log.v_ned_h[it, :] = q1.v_ned
+    uwb0_log.xyz_h[it, :] = uwb0.xyz
+    uwb0_log.att_h[it, :] = uwb0.att
+    uwb0_log.w_h[it, :] = uwb0.w
+    uwb0_log.v_ned_h[it, :] = uwb0.v_ned
 
-    q2_log.xyz_h[it, :] = q2.xyz
-    q2_log.att_h[it, :] = q2.att
-    q2_log.w_h[it, :] = q2.w
-    q2_log.v_ned_h[it, :] = q2.v_ned
+    uwb1_log.xyz_h[it, :] = uwb1.xyz
+    uwb1_log.att_h[it, :] = uwb1.att
+    uwb1_log.w_h[it, :] = uwb1.w
+    uwb1_log.v_ned_h[it, :] = uwb1.v_ned
 
-    q3_log.xyz_h[it, :] = q3.xyz
-    q3_log.att_h[it, :] = q3.att
-    q3_log.w_h[it, :] = q3.w
-    q3_log.v_ned_h[it, :] = q3.v_ned
+    uwb2_log.xyz_h[it, :] = uwb2.xyz
+    uwb2_log.att_h[it, :] = uwb2.att
+    uwb2_log.w_h[it, :] = uwb2.w
+    uwb2_log.v_ned_h[it, :] = uwb2.v_ned
 
-    Ed_log[it, :] = np.array([get_dist_clean(q1.xyz[0:2],q2.xyz[0:2])-15,
-                                get_dist_clean(q1.xyz[0:2],q3.xyz[0:2])-15,
-                                get_dist_clean(q3.xyz[0:2],q2.xyz[0:2])-15])
-    '''
+    uwb3_log.xyz_h[it, :] = uwb3.xyz
+    uwb3_log.att_h[it, :] = uwb3.att
+    uwb3_log.w_h[it, :] = uwb3.w
+    uwb3_log.v_ned_h[it, :] = uwb3.v_ned
+
+    UAV_log.xyz_h[it, :] = UAV.xyz
+    UAV_log.att_h[it, :] = UAV.att
+    UAV_log.w_h[it, :] = UAV.w
+    UAV_log.v_ned_h[it, :] = UAV.v_ned
+
     it+=1
 
     # Stop if crash
-    #if (q1.crashed == 1 or q2.crashed == 1 or q3.crashed == 1):
-    #    break
+    if (uwb0.crashed == 1 or uwb1.crashed == 1 or uwb2.crashed == 1 or uwb3.crashed == 1 or UAV.crashed == 1):
+        break
 
 pl.figure(1)
 pl.title("2D Position [m]")
