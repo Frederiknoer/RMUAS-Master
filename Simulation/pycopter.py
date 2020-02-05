@@ -145,7 +145,7 @@ RA3 = range_agent.uwb_agent( ID=3 )
 UAV_agent = range_agent.uwb_agent( ID=10 )
 
 for t in time:
-    '''
+
     UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
     UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
     UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
@@ -159,15 +159,20 @@ for t in time:
     UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA3.id, range=get_dist(uwb1.xyz, uwb3.xyz))
 
     UAV_agent.handle_other_msg(Id1=RA2.id, Id2=RA3.id, range=get_dist(uwb2.xyz, uwb3.xyz))
-
+    '''
     A,B,C,D = UAV_agent.define_ground_plane()
     #print (A, B, C, D)
     sph_list = np.array([[A[0], A[1], A[2], get_dist(UAV.xyz, uwb0.xyz)],
                          [B[0], B[1], B[2], get_dist(UAV.xyz, uwb1.xyz)],
                          [C[0], C[1], C[2], get_dist(UAV.xyz, uwb2.xyz)],
                          [D[0], D[1], D[2], get_dist(UAV.xyz, uwb3.xyz)]])
-    UAV_agent.calc_spheres(sph_list)
+
+    #UAV_agent.calc_spheres(sph_list)
     '''
+
+    est_pos = UAV_agent.calc_pos_MSE()
+    print("True Pos: ", UAV.xyz)
+    print("Estimated Pos: ", est_pos)
 
     UAV.set_v_2D_alt_lya([random.uniform(-2.0,2.0), random.uniform(-2.0,2.0)], -10)
 

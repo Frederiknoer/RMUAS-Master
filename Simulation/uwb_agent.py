@@ -12,7 +12,9 @@ import math
 import numpy as np
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
-import sympy as sp
+import sympy as symp
+import scipy as scip
+
 
 DEBUG = False
 
@@ -106,6 +108,43 @@ class uwb_agent:
         print(result)
         return result
 
+
+    def mse(self, x, locations, distances):
+        mse = 0.0
+        for location, distance in zip(locations, distances):
+            distance_calculated = self.calc_dist(x,location)
+            mse += math.pow(distance_calculated - distance, 2.0)
+        return mse / len(distances)
+
+    def calc_pos_MSE(self):
+        locations = self.define_ground_plane()
+        distances = [None]*4
+        for i, pair in enumerate(self.pairs):
+            if pair[0] == 10:
+                if pair[1] == 0:
+                    distances[0] = pair[2]
+                elif pair[1] == 1:
+                    distances[1] = pair[2]
+                elif pair[1] == 2:
+                    distances[2] = pair[2]
+                elif pair[1] == 3:
+                    distances[3] = pair[2]
+        #print(distances)
+
+        initial_location = np.array([2.0, 1.5, 0.1])
+
+        result = scip.optimize.minimize(
+            self.mse,                         # The error function
+            initial_location,            # The initial guess
+            args=(locations, distances), # Additional parameters for mse
+            #method='L-BFGS-B',           # The optimisation algorithm
+            options={
+            'ftol':1e-5,                 # Tolerance
+            'maxiter': 1e+7              # Maximum iterations
+            })
+        location = result.x
+
+        return location
 
 
     def define_ground_plane(self):
