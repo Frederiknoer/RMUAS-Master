@@ -14,9 +14,85 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 import sympy as symp
 import scipy as scip
+import serial
 
 
+PI = 3.14159265359
 DEBUG = False
+
+class KF:
+    def __init__(self):
+        self.dt = 5e-2
+        self.x = np.array([ 1.0,
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0, ])
+
+
+
+        self.P = np.eye(6)
+        self.P *= 100.
+
+        self.R = 1.0
+
+        self.Q = np.eye(6)
+        self.Q *= 0.01
+
+        p_mag = np.linalg.norm(self.x[0:3])
+        self.H = np.array([[ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ]])
+
+        self.F = np.array([ [1.0, 0.0, 0.0, self.dt, 0.0, 0.0],
+                            [0.0, 1.0, 0.0, 0.0, self.dt, 0.0],
+                            [0.0, 0.0, 1.0, 0.0, 0.0, self.dt],
+                            [0.0, 0.0, 0.0, 1.0,  0.0,    0.0],
+                            [0.0, 0.0, 0.0, 0.0,  1.0,    0.0],
+                            [0.0, 0.0, 0.0, 0.0,  0.0,    1.0] ])
+
+
+        self.G = np.array([ [0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            [0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0],
+                            [0.0, 0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0],
+                            [self.dt,0.0 ,        0.0, 0.0, 0.0, 0.0],
+                            [0.0,   self.dt,      0.0, 0.0, 0.0, 0.0],
+                            [0.0,    0.0,     self.dt, 0.0, 0.0, 0.0] ])
+
+        self.K = np.array([ 0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0, ])
+        self.I = np.eye(6)
+
+    def predict(self, acc_in):
+        acc_in = np.append(acc_in, np.array([0,0,0]))
+        self.x = np.matmul(self.F, self.x) + np.matmul(self.G, acc_in)
+        self.P = np.matmul( self.F, np.matmul(self.P, self.F.transpose()) ) + np.matmul( self.G, np.matmul(self.P, self.G.transpose()) ) + self.Q
+
+        '''
+        self.pos = np.add(self.pos, np.add((self.v * self.dt), (np.matmul(self.G, acc_in))).reshape((3,1)))
+        self.v = self.v + (self.dt * acc_in)
+
+        self.P = np.matmul(np.matmul(self.F.transpose(), self.P), self.F) + np.matmul(np.matmul(self.G.transpose(), self.P), self.G)
+        '''
+
+    def update(self, range_in):
+        err = abs(np.linalg.norm(self.x[0:3]) - range_in)
+
+        k1 = np.matmul(self.P, self.H.transpose())
+        hp = np.matmul(self.H, self.P)
+        k2 = np.reciprocal(np.matmul(hp, self.H.transpose())  + self.R)
+
+        self.K = k1 * k2
+
+        self.pos = self.K * err
+        self.P = np.multiply((self.I - np.multiply(self.K, self.H)), self.P)
+        p_mag = np.linalg.norm(self.x[0:3])
+        self.H = np.array([[ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ]])
+        #self.H = (np.array([[ (self.pos[0] / np.linalg.norm(self.pos)), (self.pos[1] / np.linalg.norm(self.pos)), (self.pos[2] / np.linalg.norm(self.pos)) ]])).reshape(1,3)
+
 
 class uwb_agent:
     def __init__(self, ID):
@@ -31,6 +107,8 @@ class uwb_agent:
         self.des_dist = 15
         self.I = np.array([[1,0],[0,1]])
         self.poslist = np.array([])
+        #self.ID_list = np.array(["FFFFE3BC", "FFFFA858", "6F0B"])
+        self.KF = KF()
 
     def get_B(self):
         return self.incidenceMatrix
@@ -82,11 +160,16 @@ class uwb_agent:
 
     def handle_range_msg(self, Id, range):
         self.add_nb_module(Id, range)
+        self.KF.update(range)
         #self.update_incidenceMatrix()
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
         #self.update_incidenceMatrix()
+
+    def handle_acc_msg(self, acc_in):
+        self.KF.predict(acc_in)
+        return self.KF.x
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
@@ -100,12 +183,7 @@ class uwb_agent:
         for i, sph in enumerate(sphere_list):
             eq_list = np.append(eq_list, sp.Eq( (x - sph[0])**2 + (y - sph[1])**2 + (z - sph[2])**2, sph[3]**2 ) )
 
-        #print("eq_list: ")
-        #print(eq_list)
-
         result = sp.solve(eq_list, (x,y,z))
-        print("sphere point: ")
-        print(result)
         return result
 
 
@@ -117,7 +195,7 @@ class uwb_agent:
         return mse / len(distances)
 
     def calc_pos_MSE(self):
-        locations = self.define_ground_plane()
+        locations = self.predefine_ground_plane()
         distances = [None]*4
         for i, pair in enumerate(self.pairs):
             if pair[0] == 10:
@@ -129,15 +207,14 @@ class uwb_agent:
                     distances[2] = pair[2]
                 elif pair[1] == 3:
                     distances[3] = pair[2]
-        #print(distances)
 
-        initial_location = np.array([2.0, 1.5, 0.1])
+        initial_location = np.array([-1.0, 3.5, 2.1])
 
         result = scip.optimize.minimize(
-            self.mse,                         # The error function
+            self.mse,                    # The error function
             initial_location,            # The initial guess
             args=(locations, distances), # Additional parameters for mse
-            #method='L-BFGS-B',           # The optimisation algorithm
+            method='L-BFGS-B',           # The optimisation algorithm
             options={
             'ftol':1e-5,                 # Tolerance
             'maxiter': 1e+7              # Maximum iterations
@@ -145,6 +222,15 @@ class uwb_agent:
         location = result.x
 
         return location
+
+    def predefine_ground_plane(self):
+        A = np.array([0.0, 0.0, 0.0])
+        B = np.array([1.75, 0.0, 0.0])
+        C = np.array([0.9, 1.55, 0.0])
+        #D = np.array([2.0, 0.0, 0.0])
+
+        self.poslist = np.array([A,B,C])
+        return A, B, C#, D
 
 
     def define_ground_plane(self):
@@ -287,3 +373,51 @@ class uwb_agent:
 
     def run():
         pass
+
+
+'''
+def get_uwb_id(data):
+    id_idx = data.find('from:')
+    if id_idx == -1:
+        return None
+    id = ''
+    while data[id_idx+6] != ' ':
+        id += data[id_idx+6]
+        id_idx += 1
+    id = id[:-1]
+    print("Id raw: ", id)
+    if id == "FFFFB7B1":
+        return 0
+    elif id == "FFFFE3BC":
+        return 1
+    elif id == "6F0B":
+        return 2
+    return id
+
+def get_uwb_range(data):
+    range_idx = data.find('Range:')
+    if range_idx == -1:
+        return None
+    data_val = (float(data[range_idx+7])) + (float(data[range_idx+9])*0.1) + (float(data[range_idx+10])*0.01)
+    return data_val
+
+if __name__ == "__main__":
+    ser = serial.Serial('/dev/ttyUSB0', 115200)
+    UAV_agent = uwb_agent( ID=10 )
+    id_list = []
+    while True:
+        data = ser.readline()
+        if data:
+            id = get_uwb_id(data)
+            range = get_uwb_range(data)
+            print("Id: ", id, "  range: ", range)
+            UAV_agent.handle_range_msg(Id=id, range=range)
+            if not (id in id_list):
+                id_list.append(id)
+            if len(id_list) >= 3:
+                print(UAV_agent.calc_pos_MSE())
+
+
+
+#END
+'''

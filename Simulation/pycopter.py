@@ -15,12 +15,13 @@ import formation_distance as form
 import quadlog
 import animation as ani
 
+PI = 3.14159265359
 
 def get_dist_clean(p1, p2):
     return (np.linalg.norm(p1 - p2))
 
 def get_dist(p1, p2):
-    mu, sigma = 0, 2
+    mu, sigma = 0, 0.1
     std_err = np.random.normal(mu, sigma, 1)[0]
     return (np.linalg.norm(p1 - p2)) #+ std_err
 
@@ -72,9 +73,9 @@ att_0 = np.array([0.0, 0.0, 0.0])
 pqr_0 = np.array([0.0, 0.0, 0.0])
 
 xyz0_0 = np.array([0.0, 0.0, 0.0])
-xyz1_0 = np.array([7.0, 0.0, 0.0])
-xyz2_0 = np.array([3.5, 6.5, 0.0])
-xyz3_0 = np.array([3.0, -7.5, 0.0])
+xyz1_0 = np.array([3.0, 0.0, 0.0])
+xyz2_0 = np.array([1.5, 1.75, 0.0])
+#xyz3_0 = np.array([2.0, 0.0, 0.0])
 xyz_uav_0 = np.array([2.0, 1.5, 0.0])
 
 v_ned_0 = np.array([0.0, 0.0, 0.0])
@@ -90,8 +91,8 @@ uwb1 = quad.quadrotor(1, m, l, J, CDl, CDr, kt, km, kw, \
 uwb2 = quad.quadrotor(2, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz2_0, v_ned_0, w_0)
 
-uwb3 = quad.quadrotor(3, m, l, J, CDl, CDr, kt, km, kw, \
-        att_0, pqr_0, xyz3_0, v_ned_0, w_0)
+#uwb3 = quad.quadrotor(3, m, l, J, CDl, CDr, kt, km, kw, \
+#        att_0, pqr_0, xyz3_0, v_ned_0, w_0)
 
 UAV = quad.quadrotor(10, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz_uav_0, v_ned_0, w_0)
@@ -126,7 +127,7 @@ alt_d = 0
 uwb0.yaw_d = -np.pi
 uwb1.yaw_d =  np.pi/2
 uwb2.yaw_d =  0
-uwb3.yaw_d = 0
+#uwb3.yaw_d = 0
 
 '''
 Position Rules:
@@ -140,47 +141,42 @@ ID = 10: Always the UAV
 RA0 = range_agent.uwb_agent( ID=0 )
 RA1 = range_agent.uwb_agent( ID=1 )
 RA2 = range_agent.uwb_agent( ID=2 )
-RA3 = range_agent.uwb_agent( ID=3 )
+#RA3 = range_agent.uwb_agent( ID=3 )
 
 UAV_agent = range_agent.uwb_agent( ID=10 )
 
+est_pos_kf = np.array([])
+
 for t in time:
+    if it % 25 == 0:
+        UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
+        #UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
+        #UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
+        #UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
 
-    UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
-    UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
-    UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
-    UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA1.id, range=get_dist(uwb0.xyz, uwb1.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA2.id, range=get_dist(uwb0.xyz, uwb2.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA3.id, range=get_dist(uwb0.xyz, uwb3.xyz))
 
-    UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA1.id, range=get_dist(uwb0.xyz, uwb1.xyz))
-    UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA2.id, range=get_dist(uwb0.xyz, uwb2.xyz))
-    UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA3.id, range=get_dist(uwb0.xyz, uwb3.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA2.id, range=get_dist(uwb1.xyz, uwb2.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA3.id, range=get_dist(uwb1.xyz, uwb3.xyz))
 
-    UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA2.id, range=get_dist(uwb1.xyz, uwb2.xyz))
-    UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA3.id, range=get_dist(uwb1.xyz, uwb3.xyz))
+        #UAV_agent.handle_other_msg(Id1=RA2.id, Id2=RA3.id, range=get_dist(uwb2.xyz, uwb3.xyz))
 
-    UAV_agent.handle_other_msg(Id1=RA2.id, Id2=RA3.id, range=get_dist(uwb2.xyz, uwb3.xyz))
-    '''
-    A,B,C,D = UAV_agent.define_ground_plane()
-    #print (A, B, C, D)
-    sph_list = np.array([[A[0], A[1], A[2], get_dist(UAV.xyz, uwb0.xyz)],
-                         [B[0], B[1], B[2], get_dist(UAV.xyz, uwb1.xyz)],
-                         [C[0], C[1], C[2], get_dist(UAV.xyz, uwb2.xyz)],
-                         [D[0], D[1], D[2], get_dist(UAV.xyz, uwb3.xyz)]])
+        #est_pos = UAV_agent.calc_pos_MSE()
 
-    #UAV_agent.calc_spheres(sph_list)
-    '''
-
-    est_pos = UAV_agent.calc_pos_MSE()
+    if np.linalg.norm(UAV.acc) != 0:
+        est_pos_kf = UAV_agent.handle_acc_msg(UAV.acc)
     print("True Pos: ", UAV.xyz)
-    print("Estimated Pos: ", est_pos)
+    print("Estimated Pos: ", est_pos_kf[0:3])
 
-    UAV.set_v_2D_alt_lya([random.uniform(-2.0,2.0), random.uniform(-2.0,2.0)], -10)
+    UAV.set_v_2D_alt_lya([random.uniform(-1.0,1.0), random.uniform(-1.0,1.0)], -5)
 
 
-    uwb0.step(dt)
-    uwb1.step(dt)
-    uwb2.step(dt)
-    uwb3.step(dt)
+    #uwb0.step(dt)
+    #uwb1.step(dt)
+    #uwb2.step(dt)
+    #uwb3.step(dt)
     UAV.step(dt)
 
     # Animation
@@ -190,11 +186,11 @@ for t in time:
         ani.draw3d(axis3d, uwb0.xyz, uwb0.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb1.xyz, uwb1.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb2.xyz, uwb2.Rot_bn(), quadcolor[0])
-        ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
+        #ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, UAV.xyz, UAV.Rot_bn(), quadcolor[1])
-        axis3d.set_xlim(-15, 15)
-        axis3d.set_ylim(-15, 15)
-        axis3d.set_zlim(0, 15)
+        axis3d.set_xlim(-5, 5)
+        axis3d.set_ylim(-5, 5)
+        axis3d.set_zlim(0, 10)
         axis3d.set_xlabel('South [m]')
         axis3d.set_ylabel('East [m]')
         axis3d.set_zlabel('Up [m]')
@@ -224,10 +220,10 @@ for t in time:
     uwb2_log.w_h[it, :] = uwb2.w
     uwb2_log.v_ned_h[it, :] = uwb2.v_ned
 
-    uwb3_log.xyz_h[it, :] = uwb3.xyz
-    uwb3_log.att_h[it, :] = uwb3.att
-    uwb3_log.w_h[it, :] = uwb3.w
-    uwb3_log.v_ned_h[it, :] = uwb3.v_ned
+    #uwb3_log.xyz_h[it, :] = uwb3.xyz
+    #uwb3_log.att_h[it, :] = uwb3.att
+    #uwb3_log.w_h[it, :] = uwb3.w
+    #uwb3_log.v_ned_h[it, :] = uwb3.v_ned
 
     UAV_log.xyz_h[it, :] = UAV.xyz
     UAV_log.att_h[it, :] = UAV.att
@@ -237,7 +233,7 @@ for t in time:
     it+=1
 
     # Stop if crash
-    if (uwb0.crashed == 1 or uwb1.crashed == 1 or uwb2.crashed == 1 or uwb3.crashed == 1 or UAV.crashed == 1):
+    if (uwb0.crashed == 1 or uwb1.crashed == 1 or uwb2.crashed == 1 or  UAV.crashed == 1):
         break
 
 pl.figure(1)
