@@ -23,41 +23,40 @@ DEBUG = False
 class KF:
     def __init__(self):
         self.dt = 5e-2
-        self.x = np.array([ 1.0,
-                            1.0,
-                            1.0,
-                            1.0,
-                            1.0,
-                            1.0, ])
+        self.kf = KalmanFilter(dim_x=6, dim_z=1, dim_u=6)
+        self.kf.x = np.array([  1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0, ])
+
+        #self.P = np.eye(6)
+        self.kf.P *= 1000.
+        self.kf.R = 0.1
+
+        self.kf.Q = np.eye(6)
+        self.kf.Q *= 0.01
+
+        p_mag = np.linalg.norm(self.kf.x[0:3])
+        self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
+
+        self.kf.F = np.array([  [1.0, 0.0, 0.0, self.dt, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0, self.dt, 0.0],
+                                [0.0, 0.0, 1.0, 0.0, 0.0, self.dt],
+                                [0.0, 0.0, 0.0, 1.0,  0.0,    0.0],
+                                [0.0, 0.0, 0.0, 0.0,  1.0,    0.0],
+                                [0.0, 0.0, 0.0, 0.0,  0.0,    1.0] ])
 
 
+        self.kf.B = np.array([  [0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0],
+                                [self.dt,0.0 ,        0.0, 0.0, 0.0, 0.0],
+                                [0.0,   self.dt,      0.0, 0.0, 0.0, 0.0],
+                                [0.0,    0.0,     self.dt, 0.0, 0.0, 0.0] ])
 
-        self.P = np.eye(6)
-        self.P *= 100.
-
-        self.R = 1.0
-
-        self.Q = np.eye(6)
-        self.Q *= 0.01
-
-        p_mag = np.linalg.norm(self.x[0:3])
-        self.H = np.array([[ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ]])
-
-        self.F = np.array([ [1.0, 0.0, 0.0, self.dt, 0.0, 0.0],
-                            [0.0, 1.0, 0.0, 0.0, self.dt, 0.0],
-                            [0.0, 0.0, 1.0, 0.0, 0.0, self.dt],
-                            [0.0, 0.0, 0.0, 1.0,  0.0,    0.0],
-                            [0.0, 0.0, 0.0, 0.0,  1.0,    0.0],
-                            [0.0, 0.0, 0.0, 0.0,  0.0,    1.0] ])
-
-
-        self.G = np.array([ [0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0],
-                            [self.dt,0.0 ,        0.0, 0.0, 0.0, 0.0],
-                            [0.0,   self.dt,      0.0, 0.0, 0.0, 0.0],
-                            [0.0,    0.0,     self.dt, 0.0, 0.0, 0.0] ])
-
+        '''
         self.K = np.array([ 0.0,
                             0.0,
                             0.0,
@@ -65,33 +64,37 @@ class KF:
                             0.0,
                             0.0, ])
         self.I = np.eye(6)
+        '''
 
     def predict(self, acc_in):
         acc_in = np.append(acc_in, np.array([0,0,0]))
+        self.kf.predict(u=acc_in)
+        '''
+        acc_in = np.append(acc_in, np.array([0,0,0]))
         self.x = np.matmul(self.F, self.x) + np.matmul(self.G, acc_in)
         self.P = np.matmul( self.F, np.matmul(self.P, self.F.transpose()) ) + np.matmul( self.G, np.matmul(self.P, self.G.transpose()) ) + self.Q
-
         '''
-        self.pos = np.add(self.pos, np.add((self.v * self.dt), (np.matmul(self.G, acc_in))).reshape((3,1)))
-        self.v = self.v + (self.dt * acc_in)
 
-        self.P = np.matmul(np.matmul(self.F.transpose(), self.P), self.F) + np.matmul(np.matmul(self.G.transpose(), self.P), self.G)
-        '''
 
     def update(self, range_in):
+        self.kf.update(z=range_in)
+
+        p_mag = np.linalg.norm(self.kf.x[0:3])
+        self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
+
+        '''
         err = abs(np.linalg.norm(self.x[0:3]) - range_in)
 
         k1 = np.matmul(self.P, self.H.transpose())
         hp = np.matmul(self.H, self.P)
         k2 = np.reciprocal(np.matmul(hp, self.H.transpose())  + self.R)
-
         self.K = k1 * k2
 
         self.pos = self.K * err
         self.P = np.multiply((self.I - np.multiply(self.K, self.H)), self.P)
         p_mag = np.linalg.norm(self.x[0:3])
         self.H = np.array([[ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ]])
-        #self.H = (np.array([[ (self.pos[0] / np.linalg.norm(self.pos)), (self.pos[1] / np.linalg.norm(self.pos)), (self.pos[2] / np.linalg.norm(self.pos)) ]])).reshape(1,3)
+        '''
 
 
 class uwb_agent:
@@ -169,7 +172,7 @@ class uwb_agent:
 
     def handle_acc_msg(self, acc_in):
         self.KF.predict(acc_in)
-        return self.KF.x
+        return self.KF.kf.x
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))

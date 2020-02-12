@@ -23,7 +23,7 @@ def get_dist_clean(p1, p2):
 def get_dist(p1, p2):
     mu, sigma = 0, 0.1
     std_err = np.random.normal(mu, sigma, 1)[0]
-    return (np.linalg.norm(p1 - p2)) #+ std_err
+    return (np.linalg.norm(p1 - p2)) + std_err
 
 def vecLen(v):
     return math.sqrt(np.dot(v,v))
@@ -148,7 +148,7 @@ UAV_agent = range_agent.uwb_agent( ID=10 )
 est_pos_kf = np.array([])
 
 for t in time:
-    if it % 25 == 0:
+    if it % 50 == 0:
         UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
         #UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
         #UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
