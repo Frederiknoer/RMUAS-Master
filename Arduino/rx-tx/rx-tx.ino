@@ -23,7 +23,8 @@ DW1000Time sentTime;
 
 void setup() 
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
+  delay(1000);
 
   //init the configuration
   DW1000.begin(PIN_IRQ, PIN_RST);
@@ -46,6 +47,13 @@ void setup()
   DW1000.attachSentHandler(handleSent);
   transmitter();
 
+  //Range
+  DW1000Ranging.initCommunication(PIN_RST, PIN_SS, PIN_IRQ); //Reset, CS, IRQ pin
+  //define the sketch as anchor. It will be great to dynamically change the type of module
+  DW1000Ranging.attachNewRange(newRange);
+  DW1000Ranging.attachBlinkDevice(newBlink);
+  DW1000Ranging.attachInactiveDevice(inactiveDevice);
+  DW1000Ranging.startAsTag("7D:00:22:EA:82:60:3B:9C", DW1000.MODE_LONGDATA_RANGE_ACCURACY);
 }
 
 // *********** RANGING FUNCTIONS ****************
@@ -53,6 +61,17 @@ void newRange() {
   Serial.print("from: "); Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);
   Serial.print("\t Range: "); Serial.print(DW1000Ranging.getDistantDevice()->getRange()); Serial.print(" m");
   Serial.print("\t RX power: "); Serial.print(DW1000Ranging.getDistantDevice()->getRXPower()); Serial.println(" dBm");
+}
+
+void newBlink(DW1000Device* device) {
+  Serial.print("blink; 1 device added ! -> ");
+  Serial.print(" short:");
+  Serial.println(device->getShortAddress(), HEX);
+}
+
+void inactiveDevice(DW1000Device* device) {
+  Serial.print("delete inactive device: ");
+  Serial.println(device->getShortAddress(), HEX);
 }
 
 // **********  RECEIVER FUCNTIONS ***************
@@ -122,5 +141,5 @@ void loop()
     error = false;
     DW1000.getData(message);
   }
-  delay(500);
+  DW1000Ranging.loop();
 }
