@@ -3,7 +3,7 @@
 import serial
 import csv
 
-baud = 9600 #115200
+baud = 115200
 
 ser = serial.Serial('/dev/ttyUSB0', baud)
 
