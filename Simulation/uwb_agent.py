@@ -11,7 +11,7 @@ ID = 10: Always the UAV
 import math
 import numpy as np
 from filterpy.kalman import KalmanFilter
-from filterpy.common import Q_discrete_white_noise
+from filterpy.common import Q_discrete_white_noise, reshape_z
 import sympy as symp
 import scipy as scip
 import serial
@@ -23,7 +23,7 @@ DEBUG = False
 class KF:
     def __init__(self):
         self.dt = 5e-2
-        self.kf = KalmanFilter(dim_x=6, dim_z=1, dim_u=6)
+        self.kf = KalmanFilter(dim_x=6, dim_z=1, dim_u=3)
         self.kf.x = np.array([  1.0,
                                 1.0,
                                 1.0,
@@ -31,12 +31,11 @@ class KF:
                                 1.0,
                                 1.0, ])
 
-        #self.P = np.eye(6)
-        self.kf.P *= 1000.
-        self.kf.R = 0.1
+        self.kf.P *= 1000
+        self.kf.R = 0.2
 
-        self.kf.Q = np.eye(6)
-        self.kf.Q *= 0.01
+        self.Q = np.eye(6)
+        self.Q *= 0.12
 
         p_mag = np.linalg.norm(self.kf.x[0:3])
         self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
@@ -49,52 +48,22 @@ class KF:
                                 [0.0, 0.0, 0.0, 0.0,  0.0,    1.0] ])
 
 
-        self.kf.B = np.array([  [0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.5*self.dt**2, 0.0, 0.0, 0.0],
-                                [self.dt,0.0 ,        0.0, 0.0, 0.0, 0.0],
-                                [0.0,   self.dt,      0.0, 0.0, 0.0, 0.0],
-                                [0.0,    0.0,     self.dt, 0.0, 0.0, 0.0] ])
+        self.kf.B = np.array([  [0.5*self.dt**2, 0.0, 0.0],
+                                [0.0, 0.5*self.dt**2, 0.0],
+                                [0.0, 0.0, 0.5*self.dt**2],
+                                [self.dt,0.0 ,        0.0],
+                                [0.0,   self.dt,      0.0],
+                                [0.0,    0.0,     self.dt] ])
 
-        '''
-        self.K = np.array([ 0.0,
-                            0.0,
-                            0.0,
-                            0.0,
-                            0.0,
-                            0.0, ])
-        self.I = np.eye(6)
-        '''
 
     def predict(self, acc_in):
-        acc_in = np.append(acc_in, np.array([0,0,0]))
         self.kf.predict(u=acc_in)
-        '''
-        acc_in = np.append(acc_in, np.array([0,0,0]))
-        self.x = np.matmul(self.F, self.x) + np.matmul(self.G, acc_in)
-        self.P = np.matmul( self.F, np.matmul(self.P, self.F.transpose()) ) + np.matmul( self.G, np.matmul(self.P, self.G.transpose()) ) + self.Q
-        '''
 
 
-    def update(self, range_in):
-        self.kf.update(z=range_in)
-
+    def update(self, z):
         p_mag = np.linalg.norm(self.kf.x[0:3])
         self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
-
-        '''
-        err = abs(np.linalg.norm(self.x[0:3]) - range_in)
-
-        k1 = np.matmul(self.P, self.H.transpose())
-        hp = np.matmul(self.H, self.P)
-        k2 = np.reciprocal(np.matmul(hp, self.H.transpose())  + self.R)
-        self.K = k1 * k2
-
-        self.pos = self.K * err
-        self.P = np.multiply((self.I - np.multiply(self.K, self.H)), self.P)
-        p_mag = np.linalg.norm(self.x[0:3])
-        self.H = np.array([[ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ]])
-        '''
+        self.kf.update(z)
 
 
 class uwb_agent:
@@ -111,7 +80,7 @@ class uwb_agent:
         self.I = np.array([[1,0],[0,1]])
         self.poslist = np.array([])
         #self.ID_list = np.array(["FFFFE3BC", "FFFFA858", "6F0B"])
-        self.KF = KF()
+        self.KF = np.array([KF(),KF(),KF()])
 
     def get_B(self):
         return self.incidenceMatrix
@@ -163,7 +132,7 @@ class uwb_agent:
 
     def handle_range_msg(self, Id, range):
         self.add_nb_module(Id, range)
-        self.KF.update(range)
+        self.KF[Id].update(range)
         #self.update_incidenceMatrix()
 
     def handle_other_msg(self, Id1, Id2, range):
@@ -171,8 +140,11 @@ class uwb_agent:
         #self.update_incidenceMatrix()
 
     def handle_acc_msg(self, acc_in):
-        self.KF.predict(acc_in)
-        return self.KF.kf.x
+        for kf in self.KF:
+            kf.predict(acc_in)
+
+    def get_kf_state(self, id):
+        return self.KF[id].kf.x
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
@@ -194,7 +166,7 @@ class uwb_agent:
         mse = 0.0
         for location, distance in zip(locations, distances):
             distance_calculated = self.calc_dist(x,location)
-            mse += math.pow(distance_calculated - distance, 2.0)
+            mse += (distance_calculated - distance)**2
         return mse / len(distances)
 
     def calc_pos_MSE(self):
@@ -228,8 +200,8 @@ class uwb_agent:
 
     def predefine_ground_plane(self):
         A = np.array([0.0, 0.0, 0.0])
-        B = np.array([1.75, 0.0, 0.0])
-        C = np.array([0.9, 1.55, 0.0])
+        B = np.array([3.0, 0.0, 0.0])
+        C = np.array([1.5, 1.75, 0.0])
         #D = np.array([2.0, 0.0, 0.0])
 
         self.poslist = np.array([A,B,C])

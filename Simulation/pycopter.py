@@ -21,7 +21,7 @@ def get_dist_clean(p1, p2):
     return (np.linalg.norm(p1 - p2))
 
 def get_dist(p1, p2):
-    mu, sigma = 0, 0.1
+    mu, sigma = 0, 0.12
     std_err = np.random.normal(mu, sigma, 1)[0]
     return (np.linalg.norm(p1 - p2)) + std_err
 
@@ -122,12 +122,6 @@ axis3d = fig.add_subplot(111, projection='3d')
 init_area = 10
 s = 2
 
-# Desired altitude and heading
-alt_d = 0
-uwb0.yaw_d = -np.pi
-uwb1.yaw_d =  np.pi/2
-uwb2.yaw_d =  0
-#uwb3.yaw_d = 0
 
 '''
 Position Rules:
@@ -148,29 +142,36 @@ UAV_agent = range_agent.uwb_agent( ID=10 )
 est_pos_kf = np.array([])
 
 for t in time:
-    if it % 50 == 0:
+    if it % 10 == 0:
         UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
-        #UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
-        #UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
+        UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
+        UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
         #UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
 
-        #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA1.id, range=get_dist(uwb0.xyz, uwb1.xyz))
-        #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA2.id, range=get_dist(uwb0.xyz, uwb2.xyz))
+        UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA1.id, range=get_dist(uwb0.xyz, uwb1.xyz))
+        UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA2.id, range=get_dist(uwb0.xyz, uwb2.xyz))
         #UAV_agent.handle_other_msg(Id1=RA0.id, Id2=RA3.id, range=get_dist(uwb0.xyz, uwb3.xyz))
 
-        #UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA2.id, range=get_dist(uwb1.xyz, uwb2.xyz))
+        UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA2.id, range=get_dist(uwb1.xyz, uwb2.xyz))
         #UAV_agent.handle_other_msg(Id1=RA1.id, Id2=RA3.id, range=get_dist(uwb1.xyz, uwb3.xyz))
 
         #UAV_agent.handle_other_msg(Id1=RA2.id, Id2=RA3.id, range=get_dist(uwb2.xyz, uwb3.xyz))
 
-        #est_pos = UAV_agent.calc_pos_MSE()
+        est_pos = UAV_agent.calc_pos_MSE()
 
     if np.linalg.norm(UAV.acc) != 0:
         est_pos_kf = UAV_agent.handle_acc_msg(UAV.acc)
-    print("True Pos: ", UAV.xyz)
-    print("Estimated Pos: ", est_pos_kf[0:3])
 
-    UAV.set_v_2D_alt_lya([random.uniform(-1.0,1.0), random.uniform(-1.0,1.0)], -5)
+    print("True Pos: ", UAV.xyz)
+    p1 = UAV_agent.get_kf_state(id=0)[0:3]
+    p2 = UAV_agent.get_kf_state(id=1)[0:3]
+    p3 = UAV_agent.get_kf_state(id=2)[0:3]
+    print("Estimated Pos[m0]: ", p1)
+    print("Estimated Pos[m1]: ", np.array([p2[0]+3.0, p2[1], p2[2]]))
+    print("Estimated Pos[m2]: ", np.array([p3[0]+1.5, p3[1]+1.75, p3[2]]))
+    print("MSE Pos: ", est_pos)
+
+    UAV.set_v_2D_alt_lya([random.uniform(-1, 1), random.uniform(-1, 1)], -5)
 
 
     #uwb0.step(dt)
@@ -233,7 +234,7 @@ for t in time:
     it+=1
 
     # Stop if crash
-    if (uwb0.crashed == 1 or uwb1.crashed == 1 or uwb2.crashed == 1 or  UAV.crashed == 1):
+    if (UAV.crashed == 1):
         break
 
 pl.figure(1)
