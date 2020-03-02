@@ -23,47 +23,135 @@ DEBUG = False
 class KF:
     def __init__(self):
         self.dt = 5e-2
-        self.kf = KalmanFilter(dim_x=6, dim_z=1, dim_u=3)
-        self.kf.x = np.array([  1.0,
-                                1.0,
-                                1.0,
-                                1.0,
-                                1.0,
-                                1.0, ])
+        self.prev_time = 0
 
-        self.kf.P *= 1000
-        self.kf.R = 0.2
+        #self.kf = KalmanFilter(dim_x=18, dim_z=3, dim_u=3)
+        self.x = np.array([     2.00,
+                                1.50,
+                                0.00,
+                                0.10,
+                                0.10,
+                                0.10,
 
-        self.Q = np.eye(6)
-        self.Q *= 0.12
+                                -1.0,
+                                1.50,
+                                0.00,
+                                0.10,
+                                0.10,
+                                0.10,
 
-        p_mag = np.linalg.norm(self.kf.x[0:3])
-        self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
+                                0.5,
+                                -0.25,
+                                0.0,
+                                0.10,
+                                0.10,
+                                0.10 ])
+        
+        self.R = np.eye(3)
+        self.R *= 0.05
 
-        self.kf.F = np.array([  [1.0, 0.0, 0.0, self.dt, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0, self.dt, 0.0],
-                                [0.0, 0.0, 1.0, 0.0, 0.0, self.dt],
-                                [0.0, 0.0, 0.0, 1.0,  0.0,    0.0],
-                                [0.0, 0.0, 0.0, 0.0,  1.0,    0.0],
-                                [0.0, 0.0, 0.0, 0.0,  0.0,    1.0] ])
+        self.Q = np.eye(3)
+        self.Q *= 0.8
+
+        self.P = np.eye(18)
+        self.P *= 500
+
+        self.calc_H()
+        
+        self.calc_F_G(self.dt)
+
+        self.K = np.array([0,0,0])
+
+        print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
+
+    def calc_H(self):
+        p_mag1 = np.linalg.norm(self.x[0:3])
+        p_mag2 = np.linalg.norm(self.x[6:9])
+        p_mag3 = np.linalg.norm(self.x[12:15])
+        self.H = np.array([     [ (self.x[0] / p_mag1), (self.x[1] / p_mag1), (self.x[2] / p_mag1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ],
+                                [ 0, 0, 0, 0, 0, 0, (self.x[6] / p_mag2), (self.x[7] / p_mag2), (self.x[8] / p_mag2), 0, 0, 0, 0, 0, 0, 0, 0, 0 ], 
+                                [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (self.x[12] / p_mag3), (self.x[13] / p_mag3), (self.x[14] / p_mag3), 0, 0, 0 ] ])
 
 
-        self.kf.B = np.array([  [0.5*self.dt**2, 0.0, 0.0],
-                                [0.0, 0.5*self.dt**2, 0.0],
-                                [0.0, 0.0, 0.5*self.dt**2],
-                                [self.dt,0.0 ,        0.0],
-                                [0.0,   self.dt,      0.0],
-                                [0.0,    0.0,     self.dt] ])
+    def calc_F_G(self, dt):
+        self.F = np.array([     [1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0] ])
 
 
-    def predict(self, acc_in):
-        self.kf.predict(u=acc_in)
+        self.G = np.array([     [(dt**2)/2, 0.0, 0.0],
+                                [0.0, (dt**2)/2, 0.0],
+                                [0.0, 0.0, (dt**2)/2],
+                                [dt,  0.0 ,    0.0  ],
+                                [0.0,   dt,    0.0  ],
+                                [0.0,    0.0,   dt  ],
 
+                                [(dt**2)/2, 0.0, 0.0],
+                                [0.0, (dt**2)/2, 0.0],
+                                [0.0, 0.0, (dt**2)/2],
+                                [dt,  0.0 ,    0.0  ],
+                                [0.0,   dt,    0.0  ],
+                                [0.0,    0.0,   dt  ],
+
+                                [(dt**2)/2, 0.0, 0.0],
+                                [0.0, (dt**2)/2, 0.0],
+                                [0.0, 0.0, (dt**2)/2],
+                                [dt,  0.0 ,    0.0  ],
+                                [0.0,   dt,    0.0  ],
+                                [0.0,    0.0,   dt  ]  ])
+
+
+
+    def predict(self, acc_in, t_in):
+        #dt = t_in - self.prev_time
+        #self.prev_time = t_in
+        #self.calc_F_G(dt)
+
+        self.x = np.dot(self.F, self.x) + np.dot(self.G, acc_in)
+
+        FP = np.dot(self.F, self.P)
+        FPFT = np.dot(FP, self.F.T)
+
+        GQ = np.dot(self.G, self.Q)
+        GQGT = np.dot(GQ, self.G.T)
+
+        self.P = FPFT + GQGT 
+        
 
     def update(self, z):
-        p_mag = np.linalg.norm(self.kf.x[0:3])
-        self.kf.H = np.array([[ (self.kf.x[0] / p_mag), (self.kf.x[1] / p_mag), (self.kf.x[2] / p_mag), 0, 0, 0 ]])
-        self.kf.update(z)
+        self.calc_H()
+
+        PHT = np.dot(self.P, self.H.T)
+        S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
+        self.K = np.dot(PHT, S)
+
+        zhx = z - np.dot(self.H, self.x)
+        self.x = self.x + np.dot(self.K, zhx)
+
+        KH = np.dot(self.K, self.H)
+
+        self.P = self.P - (np.dot( KH, self.P ))
+
+
+    def get_state(self):
+        return self.x
 
 
 class uwb_agent:
@@ -79,8 +167,47 @@ class uwb_agent:
         self.des_dist = 15
         self.I = np.array([[1,0],[0,1]])
         self.poslist = np.array([])
+
+        self.avg_range_arr = np.empty([ 4,5 ])
+
         #self.ID_list = np.array(["FFFFE3BC", "FFFFA858", "6F0B"])
-        self.KF = np.array([KF(),KF(),KF()])
+        if self.id == 10:
+            self.UAV_KF = KF()
+            self.kf_range_in = np.array([0,0,0])
+            self.range_check = np.array([False,False,False])
+
+    def mvg_avg(self, id, range):
+        N = 5
+        self.avg_range_arr[id] = np.roll(self.avg_range_arr[id], 1)
+        self.avg_range_arr[id][0] = range
+        #print(self.avg_range_arr[id])
+        return np.average(self.avg_range_arr[id])
+        
+
+
+    def handle_range_msg(self, Id, range):
+        range_f = self.mvg_avg(Id, range)
+        #print("range, range filtered")
+        #print(range, range_f)
+        self.add_nb_module(Id, range_f)
+        if Id != 3:
+            self.kf_range_in[Id] = range
+            self.range_check[Id] = True
+            if not any(x == False for x in self.range_check):
+                print self.range_check
+                self.UAV_KF.update(self.kf_range_in)
+                self.range_check[:] = False
+        #self.update_incidenceMatrix()
+
+    def handle_other_msg(self, Id1, Id2, range):
+        self.add_pair(Id1, Id2, range)
+        #self.update_incidenceMatrix()
+
+    def handle_acc_msg(self, acc_in, t_in):
+        self.UAV_KF.predict(acc_in, t_in)
+
+    def get_kf_state(self):
+        return self.UAV_KF.get_state()
 
     def get_B(self):
         return self.incidenceMatrix
@@ -130,21 +257,6 @@ class uwb_agent:
             self.pairs = np.append(self.pairs, np.array([[Id1, Id2, range]]),axis=0)
 
 
-    def handle_range_msg(self, Id, range):
-        self.add_nb_module(Id, range)
-        self.KF[Id].update(range)
-        #self.update_incidenceMatrix()
-
-    def handle_other_msg(self, Id1, Id2, range):
-        self.add_pair(Id1, Id2, range)
-        #self.update_incidenceMatrix()
-
-    def handle_acc_msg(self, acc_in):
-        for kf in self.KF:
-            kf.predict(acc_in)
-
-    def get_kf_state(self, id):
-        return self.KF[id].kf.x
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
@@ -183,7 +295,7 @@ class uwb_agent:
                 elif pair[1] == 3:
                     distances[3] = pair[2]
 
-        initial_location = np.array([-1.0, 3.5, 2.1])
+        initial_location = np.array([2.0, 1.5, 0.5])
 
         result = scip.optimize.minimize(
             self.mse,                    # The error function
@@ -191,7 +303,7 @@ class uwb_agent:
             args=(locations, distances), # Additional parameters for mse
             method='L-BFGS-B',           # The optimisation algorithm
             options={
-            'ftol':1e-5,                 # Tolerance
+            'ftol':1e-6,                 # Tolerance
             'maxiter': 1e+7              # Maximum iterations
             })
         location = result.x
@@ -202,10 +314,10 @@ class uwb_agent:
         A = np.array([0.0, 0.0, 0.0])
         B = np.array([3.0, 0.0, 0.0])
         C = np.array([1.5, 1.75, 0.0])
-        #D = np.array([2.0, 0.0, 0.0])
+        D = np.array([1.5, -1.75, 0.0])
 
-        self.poslist = np.array([A,B,C])
-        return A, B, C#, D
+        self.poslist = np.array([A,B,C,D])
+        return A, B, C, D
 
 
     def define_ground_plane(self):
@@ -276,8 +388,6 @@ class uwb_agent:
         '''
         angle_v_a = math.acos(self.clean_cos( (v_a**2 + c**2 - v_b**2) / (2 * v_a * c) ))
         UAV_alt = v_a*math.sin(angle_v_a)
-
-
 
 
 
@@ -360,13 +470,6 @@ def get_uwb_id(data):
         id += data[id_idx+6]
         id_idx += 1
     id = id[:-1]
-    print("Id raw: ", id)
-    if id == "FFFFB7B1":
-        return 0
-    elif id == "FFFFE3BC":
-        return 1
-    elif id == "6F0B":
-        return 2
     return id
 
 def get_uwb_range(data):
@@ -380,13 +483,15 @@ if __name__ == "__main__":
     ser = serial.Serial('/dev/ttyUSB0', 115200)
     UAV_agent = uwb_agent( ID=10 )
     id_list = []
+
     while True:
         data = ser.readline()
         if data:
             id = get_uwb_id(data)
-            range = get_uwb_range(data)
+            range = 0.9 * get_uwb_range(data) - 23.52
             print("Id: ", id, "  range: ", range)
             UAV_agent.handle_range_msg(Id=id, range=range)
+
             if not (id in id_list):
                 id_list.append(id)
             if len(id_list) >= 3:

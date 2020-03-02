@@ -4,6 +4,16 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 
+#************************************************************ SET NAME AND FOLDER HERE ***************************************
+
+folder = "m4/"
+name = "200cm"
+
+
+#*****************************************************************************************************************************
+
+
+
 def get_uwb_id(data):
     id_idx = data.find('from:')
     if id_idx == -1:
@@ -25,8 +35,6 @@ def get_uwb_range(data):
 ser = serial.Serial('/dev/ttyUSB0', 115200)
 x = []
 
-name = '550cm'
-
 while len(x) < 250:
     data = ser.readline()
     if data:
@@ -34,9 +42,8 @@ while len(x) < 250:
         range = get_uwb_range(data)
         if id == None or range == None:
             continue
-        print(data)
         x.append(float(range))
-        with open('distance_tests/csv/uwb-static('+name+').csv', mode='a') as writeFile:
+        with open('distance_tests/csv/'+folder+name+'.csv', mode='a') as writeFile:
             writer = csv.writer(writeFile, delimiter=',')
             writer.writerow([range])
         writeFile.close()
@@ -45,4 +52,4 @@ fig, ax = plt.subplots()
 ax.set_title(name)
 ax.boxplot(x, showfliers=False)
 #plt.show()
-plt.savefig('distance_tests/plots/'+name+'.png')
+plt.savefig('distance_tests/plots/'+folder+name+'.png')
