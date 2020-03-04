@@ -39,13 +39,13 @@ class KF:
         
         #self.R = np.eye(3)
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 1
+        self.R *= 7 #7
 
-        self.Q = np.eye(dim_x) # process uncertainty
-        self.Q *= 1
+        self.Q = np.eye(dim_u) # process uncertainty
+        self.Q *= 0.0001 #0.0001
 
         self.P = np.eye(dim_x) # uncertainty covariance
-        self.P *= 1000
+        self.P *= 500 # 500
 
         self.calc_H()
         
@@ -54,20 +54,20 @@ class KF:
         self.K = np.zeros((dim_x, dim_z)) # kalman gain
 
         self.I = np.eye(dim_x)
-
+        
         print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
 
     def calc_H(self):
         '''
         xyz0_0 = np.array([0.0, 0.0, 0.0])
         xyz1_0 = np.array([3.0, 0.0, 0.0])
-        xyz2_0 = np.array([1.5, 1.75, 0.0])
-        xyz3_0 = np.array([1.5, -1.75, 0.0])
+        xyz2_0 = np.array([1.5, 2.59808, 0.0])
+        xyz3_0 = np.array([1.5, -2.59808, 0.0])
         '''
-        p_mag = np.linalg.norm(self.x[0:3])
-        self.H = np.array([ [ (self.x[0] / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ] ])
+        self.p_mag = np.linalg.norm(self.x[0:3])
+        self.H = np.array([ [ (self.x[0] / self.p_mag), (self.x[1] / self.p_mag), (self.x[2] / self.p_mag), 0, 0, 0 ]  ])
                             #[ ((self.x[0]+3.0) / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ], 
-                            #[ ((self.x[0]+1.5)/ p_mag), ((self.x[1]+1.75) / p_mag), (self.x[2] / p_mag), 0, 0, 0 ] ])
+                            #[ ((self.x[0]+1.5)/ p_mag), ((self.x[1]+2.59808) / p_mag), (self.x[2] / p_mag), 0, 0, 0 ] ])
 
 
     def calc_F_G(self, dt):
@@ -94,31 +94,34 @@ class KF:
         FP = np.dot(self.F, self.P)
         FPFT = np.dot(FP, self.F.T)
 
-        #GQ = np.dot(self.G, self.Q)
-        #GQGT = np.dot(GQ, self.G.T)
+        GQ = np.dot(self.G, self.Q)
+        GQGT = np.dot(GQ, self.G.T)
 
-        self.P = FPFT + self.Q #GQGT
+        self.P = FPFT + GQGT
+        #print("Old Eigen P: ", np.linalg.eig(self.P)[0][0:3] )
         
 
     def update(self, z):
-        #print("update. range: ", z)
         self.calc_H()
 
         PHT = np.dot(self.P, self.H.T)
         S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
         self.K = np.dot(PHT, S)
 
-        zhx = z - np.dot(self.H, self.x)
-        self.x = self.x + np.dot(self.K, zhx)
+        y = z - np.dot(self.H, self.x)
+        self.x = self.x + np.dot(self.K, y)
 
         KH = np.dot(self.K, self.H)
-
-        #self.P = np.dot((self.I - KH), self.P)
-        self.P = self.P - (np.dot( KH, self.P ))
-
+        self.P = np.dot((self.I - KH), self.P)
+        
+        #self.P = self.P - (np.dot( KH, self.P ))
+        #print("New Eigin P: ", np.linalg.eig(self.P)[0][0:3] )
 
     def get_state(self):
         return self.x
+
+    def get_plot_data(self):
+        return np.linalg.eig(self.P)[0][0:3]
 
 
 class uwb_agent:
@@ -133,16 +136,19 @@ class uwb_agent:
 
         self.poslist = np.array([])
 
-        self.avg_range_arr = np.empty([ 4,5 ])
+        self.avg_range_arr = np.empty([ 4,4 ])
 
         self.KF_started = False
-
 
     def startKF(self, xyz, v_ned):
         self.UAV_KF = KF(xyz, v_ned)
         self.kf_range_in = np.array([0,0,0])
         self.range_check = np.array([False,False,False])
         self.KF_started = True
+
+    
+    def get_plot_data(self):
+        return self.UAV_KF.get_plot_data()
 
 
     def mvg_avg(self, id, range):
@@ -153,21 +159,21 @@ class uwb_agent:
 
 
     def handle_range_msg(self, Id, range):
-        #range_f = self.mvg_avg(Id, range)
+        range_f = self.mvg_avg(Id, range)
         #print("range, range filtered")
         #print(range, range_f)
-        self.add_nb_module(Id, range)
+        self.add_nb_module(Id, range_f)
         
         if Id == 0 and self.KF_started:
             self.UAV_KF.update(range)
-            '''
+        '''
             self.kf_range_in[Id] = range
             self.range_check[Id] = True
             if not any(x == False for x in self.range_check):
                 self.UAV_KF.update(self.kf_range_in)
                 self.range_check[:] = False
-            '''
-        
+            
+        '''
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
@@ -231,7 +237,7 @@ class uwb_agent:
                 elif pair[1] == 3:
                     distances[3] = pair[2]
 
-        initial_location = np.array([2.0, 1.5, 0.1])
+        initial_location = np.array([1.5, 2.0, 0.1])
 
         result = scip.optimize.minimize(
             self.mse,                    # The error function
@@ -246,11 +252,40 @@ class uwb_agent:
 
         return location
 
+    def calc_pos_TRI(self):
+        A,B,C,D = self.predefine_ground_plane()
+        d = 3
+        i = 1.5
+        j = 2.59808
+        r = [None]*4
+        for i, pair in enumerate(self.pairs):
+            if pair[0] == 10:
+                if pair[1] == 0:
+                    r[0] = pair[2]
+                elif pair[1] == 1:
+                    r[1] = pair[2]
+                elif pair[1] == 2:
+                    r[2] = pair[2]
+                elif pair[1] == 3:
+                    r[3] = pair[2]
+
+        x = ( (r[0]**2) - (r[1]**2) * (d**2) ) / (2*d)
+        y = ( ((r[0**2]) - (r[2]**2) * (i**2) + (j**2)) / (2*j) ) -  (i/j*x) 
+        z = np.sqrt( (r[0]**2) - (x**2) - (y**2) ) 
+        '''
+        x = ( (r[0]**2) - (r[1]**2) + (d**2) ) / (2*d)
+        y = ( ((r[0]**2) - (r[2]**2) + (i**2) + (j**2)) / (2*j) ) - ( (i/j) * x )
+        z = np.sqrt( (r[0]**2) - (x**2) - (y**2) ) 
+        '''
+        
+        return np.array([x,y,z])
+
+
     def predefine_ground_plane(self):
         A = np.array([0.0, 0.0, 0.0])
         B = np.array([3.0, 0.0, 0.0])
-        C = np.array([1.5, 1.75, 0.0])
-        D = np.array([1.5, -1.75, 0.0])
+        C = np.array([1.5, 2.59808, 0.0])
+        D = np.array([1.5, -2.59808, 0.0])
 
         self.poslist = np.array([A,B,C,D])
         return A, B, C, D
