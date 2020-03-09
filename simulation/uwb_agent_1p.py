@@ -15,6 +15,7 @@ from filterpy.common import Q_discrete_white_noise, reshape_z
 import sympy as symp
 import scipy as scip
 import serial
+import localization as lx
 
 
 PI = 3.14159265359
@@ -22,7 +23,7 @@ DEBUG = False
 
 class KF:
     def __init__(self, xyz, v_ned):
-        self.dt = 5e-2
+        self.dt = 0.2
         n_of_nodes = 1
 
         dim_x = 6
@@ -37,9 +38,8 @@ class KF:
                                 v_ned[1],
                                 v_ned[2] ])
         
-        #self.R = np.eye(3)
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 7 #7
+        self.R *= 7.0 #7
 
         self.Q = np.eye(dim_u) # process uncertainty
         self.Q *= 0.0001 #0.0001
@@ -58,12 +58,6 @@ class KF:
         print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
 
     def calc_H(self):
-        '''
-        xyz0_0 = np.array([0.0, 0.0, 0.0])
-        xyz1_0 = np.array([3.0, 0.0, 0.0])
-        xyz2_0 = np.array([1.5, 2.59808, 0.0])
-        xyz3_0 = np.array([1.5, -2.59808, 0.0])
-        '''
         self.p_mag = np.linalg.norm(self.x[0:3])
         self.H = np.array([ [ (self.x[0] / self.p_mag), (self.x[1] / self.p_mag), (self.x[2] / self.p_mag), 0, 0, 0 ]  ])
                             #[ ((self.x[0]+3.0) / p_mag), (self.x[1] / p_mag), (self.x[2] / p_mag), 0, 0, 0 ], 
@@ -125,8 +119,9 @@ class KF:
 
 
 class uwb_agent:
-    def __init__(self, ID):
-        self.id = ID
+    def __init__(self, ID, d=None):
+        self.id = int(ID)
+        self.d = d
 
         self.M = np.array([self.id]) #Modules
         self.N = np.array([]) #Neigbours
@@ -134,9 +129,12 @@ class uwb_agent:
         self.P = np.array([]) #
         self.pairs = np.empty((0,3))
 
+        self.val = np.array([])
+        self.prev_val = np.array([1.5, 2.0, 0.1])
+
         self.poslist = np.array([])
 
-        self.avg_range_arr = np.empty([ 4,4 ])
+        self.avg_range_arr = np.empty([ 7,3 ])
 
         self.KF_started = False
 
@@ -162,7 +160,7 @@ class uwb_agent:
         range_f = self.mvg_avg(Id, range)
         #print("range, range filtered")
         #print(range, range_f)
-        self.add_nb_module(Id, range_f)
+        self.add_nb_module(int(Id), range_f)
         
         if Id == 0 and self.KF_started:
             self.UAV_KF.update(range)
@@ -176,7 +174,7 @@ class uwb_agent:
         '''
 
     def handle_other_msg(self, Id1, Id2, range):
-        self.add_pair(Id1, Id2, range)
+        self.add_pair(int(Id1), int(Id2), range)
 
     def handle_acc_msg(self, acc_in):
         self.UAV_KF.predict(acc_in)
@@ -211,53 +209,63 @@ class uwb_agent:
             self.pairs = np.append(self.pairs, np.array([[Id1, Id2, range]]),axis=0)
 
 
+    def calc_pos_LS(self):
+        nodes = 4
+        a,b,c,d = self.predefine_ground_plane()
+        x = np.array([ a[0], b[0], c[0], d[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2] ])
+
+        A = np.zeros((nodes, 3))
+        B = np.zeros(nodes)
+
+
+        d = np.zeros(nodes)
+        k = np.zeros(nodes)
+
+        for pair in self.pairs:
+            if pair[0] == 10:
+                if pair[1] == 0:
+                    d[0] = pair[2]
+                elif pair[1] == 1:
+                    d[1] = pair[2]
+                elif pair[1] == 2:
+                    d[2] = pair[2]
+                elif pair[1] == 3:
+                    d[3] = pair[2]
+
+        for i in range(nodes-1):
+            k[i] = x[i]**2 + y[i]**2 + z[i]**2
+
+        for i in range(nodes-1):
+            A[i][0] = x[i+1] - x[0]
+            A[i][1] = y[i+1] - y[0]
+            A[i][2] = z[i+1] - z[0]
+
+            B[i] = d[0]**2 - d[i+1]**2 - k[0] + k[i+1]
+        
+        ATA = np.dot(A.T, A)
+        print ATA
+        ATB = np.dot(A.T, B)
+        r = np.dot(np.linalg.inv(ATA), ATB)
+
+        return r
+
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
 
-
-    def mse(self, x, locations, distances):
+    def mse(self, x, c, r):
         mse = 0.0
-        for location, distance in zip(locations, distances):
+        for location, distance in zip(c, r):
             distance_calculated = self.calc_dist(x,location)
             mse += (distance_calculated - distance)**2
-        return mse / len(distances)
+        return mse / len(c)
 
     def calc_pos_MSE(self):
-        locations = self.predefine_ground_plane()
-        distances = [None]*4
-        for i, pair in enumerate(self.pairs):
-            if pair[0] == 10:
-                if pair[1] == 0:
-                    distances[0] = pair[2]
-                elif pair[1] == 1:
-                    distances[1] = pair[2]
-                elif pair[1] == 2:
-                    distances[2] = pair[2]
-                elif pair[1] == 3:
-                    distances[3] = pair[2]
+        c = self.predefine_ground_plane()
+        r = [None]*7
 
-        initial_location = np.array([1.5, 2.0, 0.1])
-
-        result = scip.optimize.minimize(
-            self.mse,                    # The error function
-            initial_location,            # The initial guess
-            args=(locations, distances)#, # Additional parameters for mse
-            #method='L-BFGS-B',           # The optimisation algorithm
-            #options={
-            #'ftol':1e-6,                 # Tolerance
-            #'maxiter': 1e+7 }            # Maximum iterations
-            )
-        location = result.x
-
-        return location
-
-    def calc_pos_TRI(self):
-        A,B,C,D = self.predefine_ground_plane()
-        d = 3
-        i = 1.5
-        j = 2.59808
-        r = [None]*4
         for i, pair in enumerate(self.pairs):
             if pair[0] == 10:
                 if pair[1] == 0:
@@ -268,27 +276,88 @@ class uwb_agent:
                     r[2] = pair[2]
                 elif pair[1] == 3:
                     r[3] = pair[2]
+                elif pair[1] == 4:
+                    r[4] = pair[2]
+                elif pair[1] == 5:
+                    r[5] = pair[2]
+                elif pair[1] == 6:
+                    r[6] = pair[2]
 
-        x = ( (r[0]**2) - (r[1]**2) * (d**2) ) / (2*d)
-        y = ( ((r[0**2]) - (r[2]**2) * (i**2) + (j**2)) / (2*j) ) -  (i/j*x) 
-        z = np.sqrt( (r[0]**2) - (x**2) - (y**2) ) 
-        '''
-        x = ( (r[0]**2) - (r[1]**2) + (d**2) ) / (2*d)
-        y = ( ((r[0]**2) - (r[2]**2) + (i**2) + (j**2)) / (2*j) ) - ( (i/j) * x )
-        z = np.sqrt( (r[0]**2) - (x**2) - (y**2) ) 
-        '''
-        
-        return np.array([x,y,z])
+        x0 = self.prev_val
+
+        res = scip.optimize.minimize(self.mse, x0, args=(c, r), method='SLSQP')
+        self.prev_val = res.x
+
+        return [self.prev_val[0], self.prev_val[1], -(abs(self.prev_val[2]))]
+
+    def calc_pos_TRI(self):
+        A,B,C,D,E,F,G = self.predefine_ground_plane()
+        self.val = np.array([1.5, 2.0, 0.1])
+        #d = self.d
+        #i = d / 2
+        #j = d * (np.sqrt(3)/2)
+        r = [None]*7
+        #print self.pairs
+        for i, pair in enumerate(self.pairs):
+            if pair[0] == 10:
+                if pair[1] == 0:
+                    r[0] = pair[2]
+                elif pair[1] == 1:
+                    r[1] = pair[2]
+                elif pair[1] == 2:
+                    r[2] = pair[2]
+                elif pair[1] == 3:
+                    r[3] = pair[2]
+                elif pair[1] == 4:
+                    r[4] = pair[2]
+                elif pair[1] == 5:
+                    r[5] = pair[2]
+                elif pair[1] == 6:
+                    r[6] = pair[2]
+        #print r
+        P=lx.Project(mode='3D', solver='LSE_GC')
+
+        P.add_anchor('anchore_A', (A[0], A[1], A[2]) )
+        P.add_anchor('anchore_B', (B[0], B[1], B[2]) )
+        P.add_anchor('anchore_C', (C[0], C[1], C[2]) )
+        P.add_anchor('anchore_D', (D[0], D[1], D[2]) )
+        P.add_anchor('anchore_E', (E[0], E[1], E[2]) )
+        P.add_anchor('anchore_F', (F[0], F[1], F[2]) )
+        P.add_anchor('anchore_G', (G[0], G[1], G[2]) )
+
+        t,label=P.add_target()
+
+        t.add_measure('anchore_A', r[0])
+        t.add_measure('anchore_B', r[1])
+        t.add_measure('anchore_C', r[2])
+        t.add_measure('anchore_D', r[3])
+        t.add_measure('anchore_E', r[4])
+        t.add_measure('anchore_F', r[5])
+        t.add_measure('anchore_G', r[6])
+
+        P.solve()
+        p = t.loc
+        if p:
+            self.val = np.array([ p.x, p.y, -p.z ])
+        return self.val
+
+            
 
 
     def predefine_ground_plane(self):
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([3.0, 0.0, 0.0])
-        C = np.array([1.5, 2.59808, 0.0])
-        D = np.array([1.5, -2.59808, 0.0])
+        d = self.d
+        dy = d * (np.sqrt(3)/2)
 
-        self.poslist = np.array([A,B,C,D])
-        return A, B, C, D
+        A = np.array([0.0, 0.0, 0.0])
+        B = np.array([d  , 0.0, 0.0])
+        C = np.array([d/2, dy, 0.0])
+        D = np.array([d/2, -dy, 0.0])
+        E = np.array([-(d/2), dy, 0.0])
+        F = np.array([-d, 0.0, 0.0])
+        G = np.array([-(d/2), -dy, 0.0])
+
+        self.poslist = [A,B,C,D,E,F,G]
+        return A, B, C, D, E, F, G
 
 
     def define_ground_plane(self):

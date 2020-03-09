@@ -47,15 +47,25 @@ kw = 1/0.18   # rad/s
 att_0 = np.array([0.0, 0.0, 0.0])
 pqr_0 = np.array([0.0, 0.0, 0.0])
 
+d = 5.0
+dy = d * (np.sqrt(3)/2)
+
 xyz0_0 = np.array([0.0, 0.0, 0.0])
-xyz1_0 = np.array([3.0, 0.0, 0.0])
-xyz2_0 = np.array([1.5, 2.59808, 0.0])
-xyz3_0 = np.array([1.5, -2.59808, 0.0])
+xyz1_0 = np.array([d,   0.0, 0.0])
+xyz2_0 = np.array([d/2, dy, 0.0])
+xyz3_0 = np.array([d/2, -dy, 0.0])
+xyz4_0 = np.array([-(d/2), dy, 0.0])
+xyz5_0 = np.array([-d, 0.0, 0.0])
+xyz6_0 = np.array([-(d/2), -dy, 0.0])
+
+
+
 xyz_uav_0 = np.array([1.0, 1.5, 0.0])
 
 
 state = 0
-wp = np.array([ [ 4,  3, -2.5 ], [ 4, -1, -2.5 ], [ 0, -1, -2.5 ], [0,  3, -2.5 ] ])
+#wp = np.array([ [ 2,  2, -5 ], [ 2, -2, -5], [ -2, -2, -5 ], [-2,  2, -5] ])
+wp = np.array([ [ d,  dy+1, -2.5 ], [ d, -(dy+1), -2.5 ], [ -1, -(dy+1), -2.5 ], [-1,  dy+1, -2.5 ] ])
 
 
 v_ned_0 = np.array([0.0, 0.0, 0.0])
@@ -74,12 +84,21 @@ uwb2 = quad.quadrotor(2, m, l, J, CDl, CDr, kt, km, kw, \
 uwb3 = quad.quadrotor(3, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz3_0, v_ned_0, w_0)
 
+uwb4 = quad.quadrotor(4, m, l, J, CDl, CDr, kt, km, kw, \
+        att_0, pqr_0, xyz4_0, v_ned_0, w_0)
+
+uwb5 = quad.quadrotor(5, m, l, J, CDl, CDr, kt, km, kw, \
+        att_0, pqr_0, xyz5_0, v_ned_0, w_0)
+
+uwb6 = quad.quadrotor(6, m, l, J, CDl, CDr, kt, km, kw, \
+        att_0, pqr_0, xyz6_0, v_ned_0, w_0)
+
 UAV = quad.quadrotor(10, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz_uav_0, v_ned_0, w_0)
 
 # Simulation parameters
-tf = 750
-dt = 5e-2
+tf = 400
+dt = 0.2
 time = np.linspace(0, tf, tf/dt)
 it = 0
 frames = 50
@@ -88,8 +107,9 @@ frames = 50
 kf_log = quadlog.quadlog(time)
 mse_log = quadlog.quadlog(time)
 tri_log = quadlog.quadlog(time)
+lse_log = quadlog.quadlog(time)
 UAV_log = quadlog.quadlog(time)
-Ed_log = np.zeros((time.size, 3))
+Ed_log = np.zeros((time.size, 1))
 eig_log = np.zeros((time.size, 3))
 
 # Plots
@@ -115,82 +135,100 @@ RA0 = range_agent.uwb_agent( ID=0 )
 RA1 = range_agent.uwb_agent( ID=1 )
 RA2 = range_agent.uwb_agent( ID=2 )
 RA3 = range_agent.uwb_agent( ID=3 )
+RA4 = range_agent.uwb_agent( ID=4 )
+RA5 = range_agent.uwb_agent( ID=5 )
+RA6 = range_agent.uwb_agent( ID=6 )
 
-UAV_agent = range_agent.uwb_agent( ID=10 )
+UAV_agent = range_agent.uwb_agent( ID=10, d=d)
 kalmanStarted = False
 kalmanStarted_int = 0
 
 
+METHOD = 'KF' #MSE - TRI - KF
+
+
 for t in time:
-    if it % 5 == 0 or it == 0:
+    if it % 5 == 0 or it == 0 or METHOD == 'MSE' or METHOD == 'TRI':
         UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
         UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
         UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
         UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
+        UAV_agent.handle_range_msg(Id=RA4.id, range=get_dist(UAV.xyz, uwb4.xyz))
+        UAV_agent.handle_range_msg(Id=RA5.id, range=get_dist(UAV.xyz, uwb5.xyz))
+        UAV_agent.handle_range_msg(Id=RA6.id, range=get_dist(UAV.xyz, uwb6.xyz))
 
-    mse_pos = UAV_agent.calc_pos_MSE()
-    #tri_pos = UAV_agent.calc_pos_TRI()
+    if METHOD == 'TRI':
+        tri_pos = UAV_agent.calc_pos_TRI()
+        tri_log.xyz_h[it, :] = tri_pos
+        Ed_log[it, :] = np.array([  get_dist_clean(tri_pos, UAV.xyz) ])
+        
+    elif METHOD == "KF":
+        if UAV.xyz[2] < -2 and not kalmanStarted:
+            UAV_agent.startKF(UAV.xyz, UAV.v_ned)
+            kalmanStarted = True
+            kalmanStarted_int = 1
+        
+        if kalmanStarted:
+            UAV_agent.handle_acc_msg(acc_in=UAV.acc)
+            kf_pos = UAV_agent.get_kf_state()[0:3]
+            eig = UAV_agent.get_plot_data()
+            eig_log[it, :] = np.array([ eig[0],
+                                    eig[1],
+                                    eig[2] ])
+        else:
+            kf_pos = UAV.xyz
+            eig_log[it, :] = np.array([ 0,
+                                    0,
+                                    0 ])
 
+        kf_log.xyz_h[it, :] = kf_pos
+        Ed_log[it, :] = np.array([  get_dist_clean(kf_pos, UAV.xyz) ])
 
-    if UAV.xyz[2] < -2 and not kalmanStarted:
-        UAV_agent.startKF(UAV.xyz, UAV.v_ned)
-        kalmanStarted = True
-        kalmanStarted_int = 1
-    
-    if kalmanStarted:
-        UAV_agent.handle_acc_msg(acc_in=UAV.acc)
-        kf_pos = UAV_agent.get_kf_state()[0:3]
-        eig = UAV_agent.get_plot_data()
-    else:
-        kf_pos = UAV.xyz
+    elif METHOD == "MSE":
+        mse_pos = UAV_agent.calc_pos_MSE()
+        mse_log.xyz_h[it, :] = mse_pos
+        Ed_log[it, :] = np.array([  get_dist_clean(mse_pos, UAV.xyz) ])
 
-    mse_pos[2] = -mse_pos[2]
-    if it < 25:
-        mse_pos = UAV.xyz
-        #tri_pos = UAV.xyz
-    '''
-    print("True Pos: ", UAV.xyz)
-    print("Estimated Pos[m0]: ", p1)
-    print("Estimated Pos[m1]: ", p2)
-    print("Estimated Pos[m2]: ", p3)
-    print("MSE Pos: ", est_pos)
-    '''
 
     x_err = abs(wp[state][0] - UAV.xyz[0])
     y_err = abs(wp[state][1] - UAV.xyz[1])
-    
-    
-    #wp = np.array([ [ 2,  2, -5 ], [ 2, -2, -5], [ -2, -2, -5 ], [-2,  2, -5] ])
+
     if state == 0:
-        UAV.set_v_2D_alt_lya(np.array([x_err*0.04, y_err*0.04]), random.uniform(-3.5, -1.0))
+        UAV.set_v_2D_alt_lya(np.array([x_err*0.03, y_err*0.03]), random.uniform(-3.5, -1.0))
         if get_dist_clean(UAV.xyz, wp[state]) < 0.4:
             state = 2
     elif state == 1:
-        UAV.set_v_2D_alt_lya(np.array([x_err*0.04, -y_err*0.04]), random.uniform(-3.5, -1.0))
+        UAV.set_v_2D_alt_lya(np.array([x_err*0.03, -y_err*0.03]), random.uniform(-3.5, -1.0))
         if get_dist_clean(UAV.xyz, wp[state]) < 0.4:
             state = 0
     elif state == 2:
-        UAV.set_v_2D_alt_lya(np.array([-x_err*0.04, -y_err*0.04]), random.uniform(-3.5, -1.0))
+        UAV.set_v_2D_alt_lya(np.array([-x_err*0.03, -y_err*0.03]), random.uniform(-3.5, -1.0))
         if get_dist_clean(UAV.xyz, wp[state]) < 0.4:
             state = 3
     elif state == 3:
-        UAV.set_v_2D_alt_lya(np.array([-x_err*0.04, y_err*0.04]), random.uniform(-3.5, -1.0))
+        UAV.set_v_2D_alt_lya(np.array([-x_err*0.03, y_err*0.03]), random.uniform(-3.5, -1.0))
         if get_dist_clean(UAV.xyz, wp[state]) < 0.4:
             state = 1
 
     UAV.step(dt)
-    '''
+    
     # Animation
     if it%frames == 0:
         pl.figure(0)
         axis3d.cla()
-        ani.draw3d(axis3d, uwb0.xyz, uwb0.Rot_bn(), quadcolor[0])
+        ani.draw3d(axis3d, uwb0.xyz, uwb0.Rot_bn(), quadcolor[2])
+
         ani.draw3d(axis3d, uwb1.xyz, uwb1.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb2.xyz, uwb2.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
+
+        ani.draw3d(axis3d, uwb4.xyz, uwb4.Rot_bn(), quadcolor[0])
+        ani.draw3d(axis3d, uwb5.xyz, uwb5.Rot_bn(), quadcolor[0])
+        ani.draw3d(axis3d, uwb6.xyz, uwb6.Rot_bn(), quadcolor[0])
+
         ani.draw3d(axis3d, UAV.xyz, UAV.Rot_bn(), quadcolor[1])
-        axis3d.set_xlim(-5, 5)
-        axis3d.set_ylim(-5, 5)
+        axis3d.set_xlim(-7, 7)
+        axis3d.set_ylim(-7, 7)
         axis3d.set_zlim(0, 10)
         axis3d.set_xlabel('South [m]')
         axis3d.set_ylabel('East [m]')
@@ -203,32 +241,12 @@ for t in time:
         #for j in range(0, 5-digits):
         #    namepic = '0' + namepic
         #pl.savefig("./images/%s.png"%namepic)
-    '''
-
-    # Log
-    kf_log.xyz_h[it, :] = kf_pos
-    mse_log.xyz_h[it, :] = mse_pos
-    #tri_log.xyz_h[it, :] = tri_pos
-
+    
 
     UAV_log.xyz_h[it, :] = UAV.xyz
     UAV_log.att_h[it, :] = UAV.att
     UAV_log.w_h[it, :] = UAV.w
     UAV_log.v_ned_h[it, :] = UAV.v_ned
-
-    Ed_log[it, :] = np.array([  get_dist_clean(kf_pos, UAV.xyz),
-                                (np.linalg.norm(kf_pos[0:3]) - np.linalg.norm(UAV.xyz)), 
-                                get_dist_clean(mse_pos, UAV.xyz) ])
-
-    if kalmanStarted:
-        eig_log[it, :] = np.array([ eig[0],
-                                    eig[1],
-                                    eig[2] ])
-    else:
-        eig_log[it, :] = np.array([ 0,
-                                    0,
-                                    0 ])
-
 
     it+=1
 
@@ -239,8 +257,13 @@ for t in time:
 
 pl.figure(1)
 pl.title("2D Position [m]")
-pl.plot(mse_log.xyz_h[:, 0], mse_log.xyz_h[:, 1], label="mse", color=quadcolor[2])
-pl.plot(kf_log.xyz_h[:, 0], kf_log.xyz_h[:, 1], label="kf", color=quadcolor[1])
+if METHOD == 'TRI':
+    pl.plot(tri_log.xyz_h[:, 0],tri_log.xyz_h[:, 1], label="tri", color=quadcolor[2])
+elif METHOD == 'KF':
+    pl.plot(kf_log.xyz_h[:, 0],kf_log.xyz_h[:, 1], label="kf", color=quadcolor[2])
+elif METHOD == 'MSE':
+    pl.plot(mse_log.xyz_h[:, 0],mse_log.xyz_h[:, 1], label="mse", color=quadcolor[2])
+
 pl.plot(UAV_log.xyz_h[:, 0], UAV_log.xyz_h[:, 1], label="Ground Truth", color=quadcolor[0])
 pl.xlabel("East")
 pl.ylabel("South")
@@ -248,11 +271,13 @@ pl.legend()
 
 pl.figure(2)
 pl.title("Error Distance [m]")
-pl.plot(time, Ed_log[:, 2], label="mse", color=quadcolor[2])
-pl.plot(time, Ed_log[:, 0], label="KF", color=quadcolor[1])
-pl.plot(time, Ed_log[:, 1], label="dist error dif", color=quadcolor[0])
-#pl.plot(time, Ed_log[:, 3], label="$e_4$")
-#pl.plot(time, Ed_log[:, 4], label="$e_5$")
+if METHOD == 'TRI':
+    pl.plot(time, Ed_log[:, 0], label="tri", color=quadcolor[2])
+elif METHOD == 'KF':
+    pl.plot(time, Ed_log[:, 0], label="KF", color=quadcolor[2])
+elif METHOD == 'MSE':
+    pl.plot(time, Ed_log[:, 0], label="mse", color=quadcolor[2])
+
 pl.xlabel("Time [s]")
 pl.ylabel("Formation distance error [m]")
 pl.grid()
@@ -260,14 +285,18 @@ pl.legend()
 
 pl.figure(3)
 pl.title("Altitude Over Time")
-pl.plot(time, mse_log.xyz_h[:, 2], label="mse", color=quadcolor[2])
-pl.plot(time, kf_log.xyz_h[:, 2], label="kf", color=quadcolor[1])
+if METHOD == 'TRI':
+    pl.plot(time, tri_log.xyz_h[:, 2], label="tri", color=quadcolor[2])
+elif METHOD == 'KF':
+    pl.plot(time, kf_log.xyz_h[:, 2], label="kf", color=quadcolor[2])
+elif METHOD == 'MSE':
+    pl.plot(time, mse_log.xyz_h[:, 2], label="mse", color=quadcolor[2])
 pl.plot(time, UAV_log.xyz_h[:, 2], label="Ground Truth", color=quadcolor[0])
 pl.xlabel("Time [s]")
 pl.ylabel("Altitude [m]")
 pl.grid()
 pl.legend(loc=2)
-
+'''
 pl.figure(4)
 pl.title("Eigen Covariance")
 pl.plot(time, eig_log[:, 0], label="cov(x,x)", color=quadcolor[2])
@@ -279,7 +308,7 @@ pl.xlabel("Time [s]")
 pl.ylabel("[m]")
 pl.grid()
 pl.legend()
-
+'''
 
 
 pl.pause(0)
