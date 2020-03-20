@@ -39,10 +39,10 @@ class KF:
                                 v_ned[2] ])
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 7.0 #7
+        self.R *= 0.05 #7
 
-        self.Q = np.eye(dim_u) # process uncertainty
-        self.Q *= 0.0001 #0.0001
+        self.cov_u = np.eye(dim_u) # process uncertainty
+        self.cov_u *= 0.0025 #0.0001 cov(u, u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
         self.P *= 500 # 500
@@ -88,10 +88,10 @@ class KF:
         FP = np.dot(self.F, self.P)
         FPFT = np.dot(FP, self.F.T)
 
-        GQ = np.dot(self.G, self.Q)
-        GQGT = np.dot(GQ, self.G.T)
+        Gcov_u = np.dot(self.G, self.cov_u)
+        Q = np.dot(Gcov_u, self.G.T)
 
-        self.P = FPFT + GQGT
+        self.P = FPFT + Q
         #print("Old Eigen P: ", np.linalg.eig(self.P)[0][0:3] )
         
 
@@ -115,7 +115,7 @@ class KF:
         return self.x
 
     def get_plot_data(self):
-        return np.linalg.eig(self.P)[0][0:3]
+        return np.sqrt( np.linalg.eig(self.P)[0][0:3] )
 
 
 class uwb_agent:
@@ -134,7 +134,7 @@ class uwb_agent:
 
         self.poslist = np.array([])
 
-        self.avg_range_arr = np.empty([ 7,3 ])
+        self.avg_range_arr = np.empty([ 7,4 ])
 
         self.KF_started = False
 
@@ -210,46 +210,53 @@ class uwb_agent:
 
 
     def calc_pos_LS(self):
-        nodes = 4
-        a,b,c,d = self.predefine_ground_plane()
-        x = np.array([ a[0], b[0], c[0], d[0] ])
-        y = np.array([ a[1], b[1], c[1], d[1] ])
-        z = np.array([ a[2], b[2], c[2], d[2] ])
+        nodes = 7
+        a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
+        x = np.array([ a[0], b[0], c[0], d[0], e[0], f[0], g[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1], e[1], f[1], g[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2], e[2], f[2], g[2] ])
 
         A = np.zeros((nodes, 3))
         B = np.zeros(nodes)
+        r = [None]*nodes
 
-
-        d = np.zeros(nodes)
-        k = np.zeros(nodes)
-
-        for pair in self.pairs:
+        for i, pair in enumerate(self.pairs):
             if pair[0] == 10:
                 if pair[1] == 0:
-                    d[0] = pair[2]
+                    r[0] = pair[2]
                 elif pair[1] == 1:
-                    d[1] = pair[2]
+                    r[1] = pair[2]
                 elif pair[1] == 2:
-                    d[2] = pair[2]
+                    r[2] = pair[2]
                 elif pair[1] == 3:
-                    d[3] = pair[2]
+                    r[3] = pair[2]
+                elif pair[1] == 4:
+                    r[4] = pair[2]
+                elif pair[1] == 5:
+                    r[5] = pair[2]
+                elif pair[1] == 6:
+                    r[6] = pair[2]
 
-        for i in range(nodes-1):
-            k[i] = x[i]**2 + y[i]**2 + z[i]**2
+        n = nodes-2
+        for i in range(nodes):
+            A[i][0] = 2*x[n] - 2*x[i]
+            A[i][1] = 2*y[n] - 2*y[i]
+            A[i][2] = 2*z[n] - 2*z[i]
 
-        for i in range(nodes-1):
-            A[i][0] = x[i+1] - x[0]
-            A[i][1] = y[i+1] - y[0]
-            A[i][2] = z[i+1] - z[0]
+            B[i] = r[i]**2 - r[n]**2 - x[i]**2 - y[i]**2 - z[i]**2 + x[n]**2 + y[n]**2 + z[n]**2
 
-            B[i] = d[0]**2 - d[i+1]**2 - k[0] + k[i+1]
+        '''
+        print('A:')
+        print(A)
+        print('B:')
+        print(B)
+        '''
+
+        res = np.linalg.lstsq(A,B)
+        #print(res)
+        return res[0]
         
-        ATA = np.dot(A.T, A)
-        print ATA
-        ATB = np.dot(A.T, B)
-        r = np.dot(np.linalg.inv(ATA), ATB)
-
-        return r
+        
 
 
     def clean_cos(self, cos_angle):
@@ -291,58 +298,7 @@ class uwb_agent:
         return [self.prev_val[0], self.prev_val[1], -(abs(self.prev_val[2]))]
 
     def calc_pos_TRI(self):
-        A,B,C,D,E,F,G = self.predefine_ground_plane()
-        self.val = np.array([1.5, 2.0, 0.1])
-        #d = self.d
-        #i = d / 2
-        #j = d * (np.sqrt(3)/2)
-        r = [None]*7
-        #print self.pairs
-        for i, pair in enumerate(self.pairs):
-            if pair[0] == 10:
-                if pair[1] == 0:
-                    r[0] = pair[2]
-                elif pair[1] == 1:
-                    r[1] = pair[2]
-                elif pair[1] == 2:
-                    r[2] = pair[2]
-                elif pair[1] == 3:
-                    r[3] = pair[2]
-                elif pair[1] == 4:
-                    r[4] = pair[2]
-                elif pair[1] == 5:
-                    r[5] = pair[2]
-                elif pair[1] == 6:
-                    r[6] = pair[2]
-        #print r
-        P=lx.Project(mode='3D', solver='LSE_GC')
-
-        P.add_anchor('anchore_A', (A[0], A[1], A[2]) )
-        P.add_anchor('anchore_B', (B[0], B[1], B[2]) )
-        P.add_anchor('anchore_C', (C[0], C[1], C[2]) )
-        P.add_anchor('anchore_D', (D[0], D[1], D[2]) )
-        P.add_anchor('anchore_E', (E[0], E[1], E[2]) )
-        P.add_anchor('anchore_F', (F[0], F[1], F[2]) )
-        P.add_anchor('anchore_G', (G[0], G[1], G[2]) )
-
-        t,label=P.add_target()
-
-        t.add_measure('anchore_A', r[0])
-        t.add_measure('anchore_B', r[1])
-        t.add_measure('anchore_C', r[2])
-        t.add_measure('anchore_D', r[3])
-        t.add_measure('anchore_E', r[4])
-        t.add_measure('anchore_F', r[5])
-        t.add_measure('anchore_G', r[6])
-
-        P.solve()
-        p = t.loc
-        if p:
-            self.val = np.array([ p.x, p.y, -p.z ])
-        return self.val
-
-            
-
+        pass
 
     def predefine_ground_plane(self):
         d = self.d
@@ -353,7 +309,7 @@ class uwb_agent:
         C = np.array([d/2, dy, 0.0])
         D = np.array([d/2, -dy, 0.0])
         E = np.array([-(d/2), dy, 0.0])
-        F = np.array([-d, 0.0, 0.0])
+        F = np.array([-(d), 0.0, 0.0])
         G = np.array([-(d/2), -dy, 0.0])
 
         self.poslist = [A,B,C,D,E,F,G]

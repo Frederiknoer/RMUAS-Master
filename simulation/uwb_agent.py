@@ -15,223 +15,188 @@ from filterpy.common import Q_discrete_white_noise, reshape_z
 import sympy as symp
 import scipy as scip
 import serial
+import localization as lx
 
 
 PI = 3.14159265359
 DEBUG = False
 
 class KF:
-    def __init__(self):
-        self.dt = 5e-2
-        self.prev_time = 0
+    def __init__(self, r_in, v_ned, acc):
+        self.dt = 0.2
+        n_of_nodes = 3
 
+        dim_x = n_of_nodes + 3
+        dim_u = 3
+        dim_z = n_of_nodes
         #self.kf = KalmanFilter(dim_x=18, dim_z=3, dim_u=3)
-        self.x = np.array([     2.00,
-                                1.50,
-                                0.00,
-                                0.10,
-                                0.10,
-                                0.10,
-
-                                -1.0,
-                                1.50,
-                                0.00,
-                                0.10,
-                                0.10,
-                                0.10,
-
-                                0.5,
-                                -0.25,
-                                0.0,
-                                0.10,
-                                0.10,
-                                0.10 ])
         
-        self.R = np.eye(3)
-        self.R *= 0.05
+        self.x = np.array([     r_in[0],
+                                r_in[1],
+                                r_in[2],
+                                v_ned[0],
+                                v_ned[1],
+                                v_ned[2] ])
+        
+        
+        self.R = np.eye(dim_z) # state uncertainty
+        self.R *= 7 #7
 
-        self.Q = np.eye(3)
-        self.Q *= 0.8
+        self.cov_u = np.eye(dim_u) # process uncertainty
+        self.cov_u *= 0.02 #0.0001 cov(u, u)
 
-        self.P = np.eye(18)
-        self.P *= 500
-
+        self.P = np.eye(dim_x) # uncertainty covariance
+        self.P *= 1000 # 500
+        
+        self.calc_F_G(self.dt, a=acc)
         self.calc_H()
+
+        self.K = np.zeros((dim_x, dim_z)) # kalman gain
+
+        self.I = np.eye(dim_x)
         
-        self.calc_F_G(self.dt)
-
-        self.K = np.array([0,0,0])
-
         print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
 
     def calc_H(self):
-        p_mag1 = np.linalg.norm(self.x[0:3])
-        p_mag2 = np.linalg.norm(self.x[6:9])
-        p_mag3 = np.linalg.norm(self.x[12:15])
-        self.H = np.array([     [ (self.x[0] / p_mag1), (self.x[1] / p_mag1), (self.x[2] / p_mag1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ],
-                                [ 0, 0, 0, 0, 0, 0, (self.x[6] / p_mag2), (self.x[7] / p_mag2), (self.x[8] / p_mag2), 0, 0, 0, 0, 0, 0, 0, 0, 0 ], 
-                                [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (self.x[12] / p_mag3), (self.x[13] / p_mag3), (self.x[14] / p_mag3), 0, 0, 0 ] ])
+        self.H = np.array([ [ 1, 0, 0, 0, 0, 0 ],
+                            [ 0, 1, 0, 0, 0, 0 ],
+                            [ 0, 0, 1, 0, 0, 0 ]  ])
 
 
-    def calc_F_G(self, dt):
-        self.F = np.array([     [1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    def calc_F_G(self, dt, a):
+        v_mag = np.linalg.norm( self.x[3:6] )
+        a_mag = np.linalg.norm(a)
+        vx, vy, vz = self.x[3:6]
+        ax, ay, az = a
 
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  dt],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0] ])
+        self.F = np.array([ [1, 0, 0, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
+                            [0, 1, 0, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
+                            [0, 0, 1, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
+                            [0, 0, 0,      1,             0,               0      ],
+                            [0, 0, 0,      0,             1,               0      ],
+                            [0, 0, 0,      0,             0,               1      ] ])
 
 
-        self.G = np.array([     [(dt**2)/2, 0.0, 0.0],
-                                [0.0, (dt**2)/2, 0.0],
-                                [0.0, 0.0, (dt**2)/2],
-                                [dt,  0.0 ,    0.0  ],
-                                [0.0,   dt,    0.0  ],
-                                [0.0,    0.0,   dt  ],
-
-                                [(dt**2)/2, 0.0, 0.0],
-                                [0.0, (dt**2)/2, 0.0],
-                                [0.0, 0.0, (dt**2)/2],
-                                [dt,  0.0 ,    0.0  ],
-                                [0.0,   dt,    0.0  ],
-                                [0.0,    0.0,   dt  ],
-
-                                [(dt**2)/2, 0.0, 0.0],
-                                [0.0, (dt**2)/2, 0.0],
-                                [0.0, 0.0, (dt**2)/2],
-                                [dt,  0.0 ,    0.0  ],
-                                [0.0,   dt,    0.0  ],
-                                [0.0,    0.0,   dt  ]  ])
+        self.G = np.array([ [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
+                            [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
+                            [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
+                            [dt,                               0,                      0           ],
+                            [0,                               dt,                      0           ],
+                            [0,                                0,                     dt           ]  ])
 
 
 
-    def predict(self, acc_in, t_in):
-        #dt = t_in - self.prev_time
-        #self.prev_time = t_in
-        #self.calc_F_G(dt)
-
-        self.x = np.dot(self.F, self.x) + np.dot(self.G, acc_in)
+    def predict(self, u):
+        print("Acc:", u)
+        self.calc_F_G(self.dt, u)
+        
+        self.x = np.dot(self.F, self.x) + np.dot(self.G, u)
 
         FP = np.dot(self.F, self.P)
         FPFT = np.dot(FP, self.F.T)
 
-        GQ = np.dot(self.G, self.Q)
-        GQGT = np.dot(GQ, self.G.T)
+        Gcov_u = np.dot(self.G, self.cov_u)
+        Q = np.dot(Gcov_u, self.G.T)
 
-        self.P = FPFT + GQGT 
+        self.P = FPFT + Q
+        #print("Old Eigen P: ", np.linalg.eig(self.P)[0][0:3] )
         
 
     def update(self, z):
-        self.calc_H()
-
         PHT = np.dot(self.P, self.H.T)
         S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
         self.K = np.dot(PHT, S)
 
-        zhx = z - np.dot(self.H, self.x)
-        self.x = self.x + np.dot(self.K, zhx)
+        y = z - np.dot(self.H, self.x)
+        self.x = self.x + np.dot(self.K, y)
 
         KH = np.dot(self.K, self.H)
+        self.P = np.dot((self.I - KH), self.P)
+        
+        #self.P = self.P - (np.dot( KH, self.P ))
+        #print("New Eigin P: ", np.linalg.eig(self.P)[0][0:3] )
 
-        self.P = self.P - (np.dot( KH, self.P ))
+    def get_state(self, id):
+        if id == 100:
+            return self.x[3:6]
+        else:
+            return self.x[id]
 
-
-    def get_state(self):
-        return self.x
+    def get_plot_data(self):
+        return np.sqrt( np.linalg.eig(self.P)[0][0:3] )
 
 
 class uwb_agent:
-    def __init__(self, ID):
-        self.id = ID
-        self.incidenceMatrix = np.array([])
+    def __init__(self, ID, d=None):
+        self.id = int(ID)
+        self.d = d
+
         self.M = np.array([self.id]) #Modules
         self.N = np.array([]) #Neigbours
         self.E = np.array([0]) #
         self.P = np.array([]) #
         self.pairs = np.empty((0,3))
-        self.errorMatrix = np.array([])
-        self.des_dist = 15
-        self.I = np.array([[1,0],[0,1]])
+
+        self.val = np.array([])
+        self.prev_val = np.array([1.5, 2.0, 0.1])
+
         self.poslist = np.array([])
 
-        self.avg_range_arr = np.empty([ 4,5 ])
+        self.avg_range_arr = np.empty([ 7,4 ])
 
-        #self.ID_list = np.array(["FFFFE3BC", "FFFFA858", "6F0B"])
-        if self.id == 10:
-            self.UAV_KF = KF()
-            self.kf_range_in = np.array([0,0,0])
-            self.range_check = np.array([False,False,False])
+        self.KF_started = False
+
+    def startKF(self, v_ned, acc):
+        r = self.get_ranges()
+        self.kf_range_in = np.array([r[0], r[1], r[2]])
+
+        self.UAV_KF = KF(self.kf_range_in, v_ned, acc)
+        
+        self.range_check = np.array([False,False,False])
+        self.KF_started = True
+
+    
+    def get_plot_data(self):
+        return self.UAV_KF.get_plot_data()
+
 
     def mvg_avg(self, id, range):
-        N = 5
         self.avg_range_arr[id] = np.roll(self.avg_range_arr[id], 1)
         self.avg_range_arr[id][0] = range
-        #print(self.avg_range_arr[id])
         return np.average(self.avg_range_arr[id])
         
 
 
     def handle_range_msg(self, Id, range):
-        range_f = self.mvg_avg(Id, range)
+        #range_f = self.mvg_avg(Id, range)
         #print("range, range filtered")
         #print(range, range_f)
-        self.add_nb_module(Id, range_f)
-        if Id != 3:
+        
+        if self.KF_started:
+            #self.UAV_KF.update(range)
+            kf_r = self.UAV_KF.get_state(Id)
+            self.add_nb_module(Id, kf_r)
+        
             self.kf_range_in[Id] = range
             self.range_check[Id] = True
             if not any(x == False for x in self.range_check):
-                print self.range_check
-                self.UAV_KF.update(self.kf_range_in)
+                #self.UAV_KF.update(self.kf_range_in)
                 self.range_check[:] = False
-        #self.update_incidenceMatrix()
+        else:
+            self.add_nb_module(Id, range)
+        
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
-        #self.update_incidenceMatrix()
 
-    def handle_acc_msg(self, acc_in, t_in):
-        self.UAV_KF.predict(acc_in, t_in)
+    def handle_acc_msg(self, acc_in):
+        self.UAV_KF.predict(acc_in)
 
-    def get_kf_state(self):
-        return self.UAV_KF.get_state()
-
-    def get_B(self):
-        return self.incidenceMatrix
+    def get_kf_state(self, Id):
+        return self.UAV_KF.get_state(Id)
 
     def calc_dist(self, p1, p2):
         return np.linalg.norm(p1 - p2)
-
-    def update_incidenceMatrix(self):
-        self_counter = 0
-        self.incidenceMatrix = np.array([])
-        self.P = np.array([])
-        self.incidenceMatrix = np.zeros((4,4), dtype=int)
-        for i, pair in enumerate(self.pairs):
-            if pair[0] == self.id or pair[1] == self.id:
-                self_counter += 1
-                continue
-            else:
-                col = np.zeros(3, dtype=int)
-                m1 = int(pair[0])
-                m2 = int(pair[1])
-                col[m1] = 1
-                col[m2] = -1
-                self.incidenceMatrix[:,(i-self_counter)] = col.T
-                self.P = np.append(self.P, pair[2])
 
 
     def add_nb_module(self, Id, range):
@@ -256,68 +221,100 @@ class uwb_agent:
         if not pair_present:
             self.pairs = np.append(self.pairs, np.array([[Id1, Id2, range]]),axis=0)
 
+    def get_ranges(self):
+        r = [None]*7
+        for i, pair in enumerate(self.pairs):
+            if pair[0] == 10:
+                if pair[1] == 0:
+                    r[0] = pair[2]
+                elif pair[1] == 1:
+                    r[1] = pair[2]
+                elif pair[1] == 2:
+                    r[2] = pair[2]
+                elif pair[1] == 3:
+                    r[3] = pair[2]
+                elif pair[1] == 4:
+                    r[4] = pair[2]
+                elif pair[1] == 5:
+                    r[5] = pair[2]
+                elif pair[1] == 6:
+                    r[6] = pair[2]
+        return r
+
+
+    def calc_pos_LS(self):
+        nodes = 7
+        a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
+        x = np.array([ a[0], b[0], c[0], d[0], e[0], f[0], g[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1], e[1], f[1], g[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2], e[2], f[2], g[2] ])
+
+        A = np.zeros((nodes, 3))
+        B = np.zeros(nodes)
+        r = self.get_ranges()
+
+        n = nodes-2
+        for i in range(nodes):
+            A[i][0] = 2*x[n] - 2*x[i]
+            A[i][1] = 2*y[n] - 2*y[i]
+            A[i][2] = 2*z[n] - 2*z[i]
+
+            B[i] = r[i]**2 - r[n]**2 - x[i]**2 - y[i]**2 - z[i]**2 + x[n]**2 + y[n]**2 + z[n]**2
+
+        '''
+        print('A:')
+        print(A)
+        print('B:')
+        print(B)
+        '''
+
+        res = np.linalg.lstsq(A,B)
+        #print(res)
+        return res[0]
+        
+        
 
 
     def clean_cos(self, cos_angle):
         return min(1,max(cos_angle,-1))
 
-    def calc_spheres(self, sphere_list):
-        #Sphere = x_pos, y_pos, z_pos, radius
-        #Sphere eq: (x - x_0)^2 + (y - y_0)^2 + (z - z_0)^2 = r^2
-        x,y,z = sp.symbols('x y z')
-        eq_list = np.array([])
-
-        for i, sph in enumerate(sphere_list):
-            eq_list = np.append(eq_list, sp.Eq( (x - sph[0])**2 + (y - sph[1])**2 + (z - sph[2])**2, sph[3]**2 ) )
-
-        result = sp.solve(eq_list, (x,y,z))
-        return result
-
-
-    def mse(self, x, locations, distances):
+    def mse(self, x, c, r):
         mse = 0.0
-        for location, distance in zip(locations, distances):
+        for location, distance in zip(c, r):
             distance_calculated = self.calc_dist(x,location)
             mse += (distance_calculated - distance)**2
-        return mse / len(distances)
+        return mse / len(c)
 
     def calc_pos_MSE(self):
-        locations = self.predefine_ground_plane()
-        distances = [None]*4
-        for i, pair in enumerate(self.pairs):
-            if pair[0] == 10:
-                if pair[1] == 0:
-                    distances[0] = pair[2]
-                elif pair[1] == 1:
-                    distances[1] = pair[2]
-                elif pair[1] == 2:
-                    distances[2] = pair[2]
-                elif pair[1] == 3:
-                    distances[3] = pair[2]
+        c = self.predefine_ground_plane()
+        c = c[0:3]
+        r = self.get_ranges()
+        r = r[0:3]
 
-        initial_location = np.array([2.0, 1.5, 0.5])
+        x0 = self.prev_val
 
-        result = scip.optimize.minimize(
-            self.mse,                    # The error function
-            initial_location,            # The initial guess
-            args=(locations, distances), # Additional parameters for mse
-            method='L-BFGS-B',           # The optimisation algorithm
-            options={
-            'ftol':1e-6,                 # Tolerance
-            'maxiter': 1e+7              # Maximum iterations
-            })
-        location = result.x
+        res = scip.optimize.minimize(self.mse, x0, args=(c, r), method='SLSQP')
+        self.prev_val = res.x
 
-        return location
+        return [self.prev_val[0], self.prev_val[1], -(abs(self.prev_val[2]))]
+
+    def calc_pos_TRI(self):
+        pass
 
     def predefine_ground_plane(self):
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([3.0, 0.0, 0.0])
-        C = np.array([1.5, 1.75, 0.0])
-        D = np.array([1.5, -1.75, 0.0])
+        d = self.d
+        dy = d * (np.sqrt(3)/2)
 
-        self.poslist = np.array([A,B,C,D])
-        return A, B, C, D
+        A = np.array([0.0, 0.0, 0.0])
+        B = np.array([d  , 0.0, 0.0])
+        C = np.array([d/2, dy, 0.0])
+        D = np.array([d/2, -dy, 0.0])
+        E = np.array([-(d/2), dy, 0.0])
+        F = np.array([-(d), 0.0, 0.0])
+        G = np.array([-(d/2), -dy, 0.0])
+
+        self.poslist = [A,B,C,D,E,F,G]
+        return A, B, C, D, E, F, G
 
 
     def define_ground_plane(self):
@@ -365,100 +362,7 @@ class uwb_agent:
         self.poslist = np.array([A,B,C,D])
         return A, B, C, D
 
-    def define_h_triangle(self):
-        for i in range((self.pairs.shape[0] - 1)):
-            pair = [self.pairs[i][0], self.pairs[i][1]]
-            if self.id in pair:
-                idx = pair.index(self.id)
-                if temp_pair[abs(idx1-1)] == 0:
-                    v_a = self.pairs[i][2]
-                if temp_pair[abs(idx1-1)] == 1:
-                    v_b = self.pairs[i][2]
-                if temp_pair[abs(idx1-1)] == 2:
-                    v_c = self.pairs[i][2]
-                if temp_pair[abs(idx1-1)] == 3:
-                    v_d = self.pairs[i][2]
-
-        v_range_list = np.array([v_a, v_b, v_c, v_d])
-        a,b,c,d,e,f,d = self.range_list
-        '''
-          UAV
-
-        A     B
-        '''
-        angle_v_a = math.acos(self.clean_cos( (v_a**2 + c**2 - v_b**2) / (2 * v_a * c) ))
-        UAV_alt = v_a*math.sin(angle_v_a)
-
-
-
-    def define_triangle(self):
-        range_list = np.array([])
-        for pair in self.pairs:
-            print pair
-            if pair[0] == self.id or pair[1] == self.id:
-                continue
-            else:
-                np.append(range_list, [pair[2]])
-        c,b,a = range_list
-
-        angle_a = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
-        angle_b = math.acos(self.clean_cos( (a**2 + c**2 - b**2) / (2 * a * c) ))
-        angle_c = math.acos(self.clean_cos( (a**2 + b**2 - c**2) / (2 * a * b) ))
-
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([c, 0.0, 0.0])
-        C = np.array([b*math.cos(angle_a), b*math.sin(angle_a), 0.0])
-
-        self.poslist = A,B,C
-        return A, B, C #, angle_a, angle_b, angle_c
-
-    def calcErrorMatrix(self):
-        arrSize = self.M.size
-
-        self.errorMatrix = np.zeros((arrSize, arrSize))
-
-        poslist = self.poslist
-        print("ID: ",self.id,"  Poslist: ",poslist)
-
-        for i in range(arrSize):
-            for j in range(arrSize):
-                curDis = self.calc_dist(poslist[i], poslist[j])
-                if curDis == 0:
-                    self.errorMatrix[i][j] = 0.0
-                else:
-                    self.errorMatrix[i][j] = curDis - self.des_dist
-        print("Error Matrix: ")
-        print(self.errorMatrix)
-
-    def calc_u_acc(self):
-        self.calcErrorMatrix()
-
-        U = np.array([])
-        K = 0.01
-        E = self.errorMatrix
-
-        for i in range(self.M.size):
-            u_x = 0
-            u_y = 0
-            for k in range(self.M.size):
-                if k != i:
-                    x_dif = self.poslist[i][0] - self.poslist[k][0]
-                    y_dif = self.poslist[i][1] - self.poslist[k][1]
-                    xy_mag = self.calc_dist(self.poslist[i],self.poslist[k])
-                    unitvec = (self.poslist[i] - self.poslist[k]) / xy_mag
-
-                    u_x += K * E[i][k] * unitvec[0]
-                    u_y += K * E[i][k] * unitvec[1]
-
-            U = np.append(U, [u_x, u_y])
-        print("U: ")
-        print(U)
-        return U
-
-
-    def run():
-        pass
-
+        
 
 '''
 def get_uwb_id(data):
