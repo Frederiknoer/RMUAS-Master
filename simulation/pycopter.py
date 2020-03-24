@@ -21,9 +21,9 @@ def get_dist_clean(p1, p2):
     return (np.linalg.norm(p1 - p2))
 
 def get_dist(p1, p2):
-    mu, sigma = 0, 0.025
+    mu, sigma = 0, 0.01
     std_err = np.random.normal(mu, sigma, 1)[0]
-    return (np.linalg.norm(p1 - p2)) #+ std_err
+    return (np.linalg.norm(p1 - p2)) + std_err
 
 # Quadrotor
 m = 0.65 # Kg
@@ -47,19 +47,17 @@ kw = 1/0.18   # rad/s
 att_0 = np.array([0.0, 0.0, 0.0])
 pqr_0 = np.array([0.0, 0.0, 0.0])
 
-d = 5.0
+d = 4.0
 dy = d * (np.sqrt(3)/2)
 
 xyz0_0 = np.array([0.0, 0.0, 0.0])
 xyz1_0 = np.array([d,   0.0, 0.0])
 xyz2_0 = np.array([d/2, dy, 0.0])
-'''
-xyz3_0 = np.array([d/2, -dy, 0.0])
+xyz3_0 = np.array([d/2, -dy, 0.1])
+
 xyz4_0 = np.array([-(d/2), dy, 0.0])
 xyz5_0 = np.array([-d, 0.0, 0.0])
 xyz6_0 = np.array([-(d/2), -dy, 0.0])
-'''
-
 
 xyz_uav_0 = np.array([1.0, 1.5, 0.0])
 
@@ -67,7 +65,7 @@ xyz_uav_0 = np.array([1.0, 1.5, 0.0])
 state = 0
 #wp = np.array([ [ 2,  2, -5 ], [ 2, -2, -5], [ -2, -2, -5 ], [-2,  2, -5] ])
 #wp = np.array([ [ d,  dy+1, -3 ], [ d, -(dy+1), -3 ], [ -1, -(dy+1), -3 ], [-1,  dy+1, -3 ] ])
-wp = np.array([ [ d,  dy+1, -3 ], [ d, 0, -3 ], [ -1, 0, -3 ], [-1,  dy+1, -3 ] ])
+wp = np.array([ [ d,  dy+1, -3 ], [ d, -dy+1, -3 ], [ -1, -dy-1, -3 ], [-1,  dy+1, -3 ] ])
 
 
 v_ned_0 = np.array([0.0, 0.0, 0.0])
@@ -82,10 +80,10 @@ uwb1 = quad.quadrotor(1, m, l, J, CDl, CDr, kt, km, kw, \
 
 uwb2 = quad.quadrotor(2, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz2_0, v_ned_0, w_0)
-'''
+
 uwb3 = quad.quadrotor(3, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz3_0, v_ned_0, w_0)
-
+'''
 uwb4 = quad.quadrotor(4, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz4_0, v_ned_0, w_0)
 
@@ -99,7 +97,7 @@ UAV = quad.quadrotor(10, m, l, J, CDl, CDr, kt, km, kw, \
         att_0, pqr_0, xyz_uav_0, v_ned_0, w_0)
 
 # Simulation parameters
-tf = 1500
+tf = 500
 dt = 0.2
 time = np.linspace(0, tf, tf/dt)
 it = 0
@@ -145,68 +143,27 @@ kalmanStarted = False
 kalmanStarted_int = 0
 
 
-METHOD = 'KF' #MSE - LS - KF
-
-
 for t in time:
-    if it % 5 == 0 or it == 0 or METHOD == 'MSE' or METHOD == 'TRI':
+    if it % 5 == 0 or it == 0:
         UAV_agent.handle_range_msg(Id=RA0.id, range=get_dist(UAV.xyz, uwb0.xyz))
         UAV_agent.handle_range_msg(Id=RA1.id, range=get_dist(UAV.xyz, uwb1.xyz))
         UAV_agent.handle_range_msg(Id=RA2.id, range=get_dist(UAV.xyz, uwb2.xyz))
-        #UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
+        UAV_agent.handle_range_msg(Id=RA3.id, range=get_dist(UAV.xyz, uwb3.xyz))
         #UAV_agent.handle_range_msg(Id=RA4.id, range=get_dist(UAV.xyz, uwb4.xyz))
         #UAV_agent.handle_range_msg(Id=RA5.id, range=get_dist(UAV.xyz, uwb5.xyz))
         #UAV_agent.handle_range_msg(Id=RA6.id, range=get_dist(UAV.xyz, uwb6.xyz))
 
-    if METHOD == 'LS':
-        ls_pos = UAV_agent.calc_pos_LS()
-        ls_log.xyz_h[it, :] = ls_pos
-        Ed_log[it, :] = np.array([  get_dist_clean(ls_pos, UAV.xyz) ])
-        
-    elif METHOD == "KF":
-        if UAV.xyz[2] < -2 and not kalmanStarted:
-            UAV_agent.startKF(UAV.v_ned, UAV.acc)
-            kalmanStarted = True
-            kalmanStarted_int = 1
-        
-        if kalmanStarted:
-            UAV_agent.handle_acc_msg(acc_in=UAV.acc)
-            '''
-            kf_pos = UAV_agent.get_kf_state()[0:3]
-            eig = UAV_agent.get_plot_data()
-            eig_log[it, :] = np.array([ eig[0],
-                                    eig[1],
-                                    eig[2] ])
-            '''
-        #else:
-            '''
-            kf_pos = UAV.xyz
-            eig_log[it, :] = np.array([ 0,
-                                    0,
-                                    0 ])
-            '''
-
-        #kf_log.xyz_h[it, :] = kf_pos
-        #Ed_log[it, :] = np.array([  get_dist_clean(kf_pos, UAV.xyz) ])
-
-    #elif METHOD == "MSE":
-        mse_pos = UAV_agent.calc_pos_MSE()
-        mse_log.xyz_h[it, :] = mse_pos
-        #Ed_log[it, :] = np.array([  get_dist_clean(mse_pos, UAV.xyz) ])
+    if UAV.xyz[2] < -2 and not kalmanStarted:
+        UAV_agent.startKF(UAV.xyz, UAV.acc)
+        kalmanStarted = True
+        kalmanStarted_int = 1
     
     if kalmanStarted:
-        print("True Range: ")
-        print(get_dist(UAV.xyz, uwb0.xyz))
-        print("Estimated Range: ")
-        print(UAV_agent.get_kf_state(0))
-        print("True Vel: ")
-        print(UAV.v_ned)
-        print("Estimated Vel: ")
-        print(UAV_agent.get_kf_state(100))
-        Ed_log[it, :] = np.array([  get_dist_clean( UAV_agent.get_kf_state(0), np.linalg.norm(UAV.xyz) ) ])
-    else:
-        Ed_log[it, :] = 0
-    
+        UAV_agent.handle_acc_msg(acc_in=UAV.acc)
+
+    mse_pos = UAV_agent.calc_pos_MSE()
+    mse_log.xyz_h[it, :] = mse_pos
+    Ed_log[it, :] = np.array([ get_dist_clean(mse_pos, UAV.xyz) ])
 
     x_err = abs(wp[state][0] - UAV.xyz[0])
     y_err = abs(wp[state][1] - UAV.xyz[1])
@@ -238,15 +195,15 @@ for t in time:
 
         ani.draw3d(axis3d, uwb1.xyz, uwb1.Rot_bn(), quadcolor[0])
         ani.draw3d(axis3d, uwb2.xyz, uwb2.Rot_bn(), quadcolor[0])
-        #ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
+        ani.draw3d(axis3d, uwb3.xyz, uwb3.Rot_bn(), quadcolor[0])
 
         #ani.draw3d(axis3d, uwb4.xyz, uwb4.Rot_bn(), quadcolor[0])
         #ani.draw3d(axis3d, uwb5.xyz, uwb5.Rot_bn(), quadcolor[0])
         #ani.draw3d(axis3d, uwb6.xyz, uwb6.Rot_bn(), quadcolor[0])
 
         ani.draw3d(axis3d, UAV.xyz, UAV.Rot_bn(), quadcolor[1])
-        axis3d.set_xlim(-1, 6)
-        axis3d.set_ylim(-1, 6)
+        axis3d.set_xlim(-5, 5)
+        axis3d.set_ylim(-1, 5)
         axis3d.set_zlim(0, 10)
         axis3d.set_xlabel('South [m]')
         axis3d.set_ylabel('East [m]')
@@ -275,46 +232,31 @@ for t in time:
 
 pl.figure(1)
 pl.title("2D Position [m]")
-if METHOD == 'LS':
-    pl.plot(ls_log.xyz_h[:, 0],ls_log.xyz_h[:, 1], label="ls", color=quadcolor[2])
-#elif METHOD == 'KF':
-#    pl.plot(kf_log.xyz_h[:, 0],kf_log.xyz_h[:, 1], label="kf", color=quadcolor[2])
-elif METHOD == 'KF':
-    pl.plot(mse_log.xyz_h[:, 0],mse_log.xyz_h[:, 1], label="mse", color=quadcolor[2])
-
+pl.plot(mse_log.xyz_h[:, 0],mse_log.xyz_h[:, 1], label="mse+kf", color=quadcolor[2])
 pl.plot(UAV_log.xyz_h[:, 0], UAV_log.xyz_h[:, 1], label="Ground Truth", color=quadcolor[0])
 pl.xlabel("East")
 pl.ylabel("South")
 pl.legend()
 
+
 pl.figure(2)
 pl.title("Error Distance [m]")
-if METHOD == 'LS':
-    pl.plot(time, Ed_log[:, 0], label="ls", color=quadcolor[2])
-#elif METHOD == 'KF':
-#    pl.plot(time, Ed_log[:, 0], label="KF", color=quadcolor[2])
-elif METHOD == 'KF':
-    pl.plot(time, Ed_log[:, 0], label="mse", color=quadcolor[2])
-
+pl.plot(time, Ed_log[:, 0], label="mse+kf", color=quadcolor[2])
 pl.xlabel("Time [s]")
 pl.ylabel("Formation distance error [m]")
 pl.grid()
 pl.legend()
 
+
 pl.figure(3)
 pl.title("Altitude Over Time")
-if METHOD == 'LS':
-    pl.plot(time, ls_log.xyz_h[:, 2], label="ls", color=quadcolor[2])
-#elif METHOD == 'KF':
-#    pl.plot(time, kf_log.xyz_h[:, 2], label="kf", color=quadcolor[2])
-elif METHOD == 'KF':
-    pl.plot(time, mse_log.xyz_h[:, 2], label="mse", color=quadcolor[2])
+pl.plot(time, mse_log.xyz_h[:, 2], label="mse+kf", color=quadcolor[2])
 pl.plot(time, UAV_log.xyz_h[:, 2], label="Ground Truth", color=quadcolor[0])
 pl.xlabel("Time [s]")
 pl.ylabel("Altitude [m]")
 pl.grid()
 pl.legend(loc=2)
-
+'''
 if METHOD == 'KF':
     pl.figure(4)
     pl.title("Eigen Covariance")
@@ -327,7 +269,7 @@ if METHOD == 'KF':
     pl.ylabel("[m]")
     pl.grid()
     pl.legend()
-
+'''
 
 
 pl.pause(0)

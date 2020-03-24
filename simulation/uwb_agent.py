@@ -22,8 +22,9 @@ PI = 3.14159265359
 DEBUG = False
 
 class KF:
-    def __init__(self, r_in, v_ned, acc):
+    def __init__(self, xyz, v_ned):
         self.dt = 0.2
+        dt = self.dt
         n_of_nodes = 3
 
         dim_x = n_of_nodes + 3
@@ -31,16 +32,16 @@ class KF:
         dim_z = n_of_nodes
         #self.kf = KalmanFilter(dim_x=18, dim_z=3, dim_u=3)
         
-        self.x = np.array([     r_in[0],
-                                r_in[1],
-                                r_in[2],
+        self.x = np.array([     xyz[0],
+                                xyz[1],
+                                xyz[2],
                                 v_ned[0],
                                 v_ned[1],
                                 v_ned[2] ])
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 7 #7
+        self.R *= 0.4 #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
         self.cov_u *= 0.02 #0.0001 cov(u, u)
@@ -48,8 +49,25 @@ class KF:
         self.P = np.eye(dim_x) # uncertainty covariance
         self.P *= 1000 # 500
         
-        self.calc_F_G(self.dt, a=acc)
-        self.calc_H()
+        self.F = np.array([ [1, 0, 0, dt, 0, 0],
+                            [0, 1, 0, 0, dt, 0],
+                            [0, 0, 1, 0, 0, dt],
+                            [0, 0, 0, 1, 0, 0 ],
+                            [0, 0, 0, 0, 1, 0 ],
+                            [0, 0, 0, 0, 0, 1 ] ])
+
+
+        self.G = np.array([ [(dt**2)/2, 0,  0],
+                            [0,  (dt**2)/2, 0],
+                            [0,  0, (dt**2)/2],
+                            [dt,  0,    0    ],
+                            [0,  dt,    0    ],
+                            [0,   0,   dt    ]  ])
+
+
+        self.H = np.array([ [ 1, 0, 0, 0, 0, 0 ],
+                            [ 0, 1, 0, 0, 0, 0 ],
+                            [ 0, 0, 1, 0, 0, 0 ]  ])
 
         self.K = np.zeros((dim_x, dim_z)) # kalman gain
 
@@ -57,39 +75,8 @@ class KF:
         
         print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
 
-    def calc_H(self):
-        self.H = np.array([ [ 1, 0, 0, 0, 0, 0 ],
-                            [ 0, 1, 0, 0, 0, 0 ],
-                            [ 0, 0, 1, 0, 0, 0 ]  ])
-
-
-    def calc_F_G(self, dt, a):
-        v_mag = np.linalg.norm( self.x[3:6] )
-        a_mag = np.linalg.norm(a)
-        vx, vy, vz = self.x[3:6]
-        ax, ay, az = a
-
-        self.F = np.array([ [1, 0, 0, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
-                            [0, 1, 0, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
-                            [0, 0, 1, vx*(dt/v_mag), vy*(dt/v_mag),  vz*(dt/v_mag)],
-                            [0, 0, 0,      1,             0,               0      ],
-                            [0, 0, 0,      0,             1,               0      ],
-                            [0, 0, 0,      0,             0,               1      ] ])
-
-
-        self.G = np.array([ [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
-                            [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
-                            [ax*(((dt**2)/2)/a_mag), ay*(((dt**2)/2)/a_mag), az*(((dt**2)/2)/a_mag)],
-                            [dt,                               0,                      0           ],
-                            [0,                               dt,                      0           ],
-                            [0,                                0,                     dt           ]  ])
-
-
 
     def predict(self, u):
-        print("Acc:", u)
-        self.calc_F_G(self.dt, u)
-        
         self.x = np.dot(self.F, self.x) + np.dot(self.G, u)
 
         FP = np.dot(self.F, self.P)
@@ -99,7 +86,6 @@ class KF:
         Q = np.dot(Gcov_u, self.G.T)
 
         self.P = FPFT + Q
-        #print("Old Eigen P: ", np.linalg.eig(self.P)[0][0:3] )
         
 
     def update(self, z):
@@ -112,15 +98,10 @@ class KF:
 
         KH = np.dot(self.K, self.H)
         self.P = np.dot((self.I - KH), self.P)
-        
-        #self.P = self.P - (np.dot( KH, self.P ))
-        #print("New Eigin P: ", np.linalg.eig(self.P)[0][0:3] )
+
 
     def get_state(self, id):
-        if id == 100:
-            return self.x[3:6]
-        else:
-            return self.x[id]
+            return self.x
 
     def get_plot_data(self):
         return np.sqrt( np.linalg.eig(self.P)[0][0:3] )
@@ -146,11 +127,11 @@ class uwb_agent:
 
         self.KF_started = False
 
-    def startKF(self, v_ned, acc):
+    def startKF(self, xyz, acc):
         r = self.get_ranges()
         self.kf_range_in = np.array([r[0], r[1], r[2]])
 
-        self.UAV_KF = KF(self.kf_range_in, v_ned, acc)
+        self.UAV_KF = KF(xyz, acc)
         
         self.range_check = np.array([False,False,False])
         self.KF_started = True
@@ -164,27 +145,11 @@ class uwb_agent:
         self.avg_range_arr[id] = np.roll(self.avg_range_arr[id], 1)
         self.avg_range_arr[id][0] = range
         return np.average(self.avg_range_arr[id])
-        
 
 
     def handle_range_msg(self, Id, range):
-        #range_f = self.mvg_avg(Id, range)
-        #print("range, range filtered")
-        #print(range, range_f)
-        
-        if self.KF_started:
-            #self.UAV_KF.update(range)
-            kf_r = self.UAV_KF.get_state(Id)
-            self.add_nb_module(Id, kf_r)
-        
-            self.kf_range_in[Id] = range
-            self.range_check[Id] = True
-            if not any(x == False for x in self.range_check):
-                #self.UAV_KF.update(self.kf_range_in)
-                self.range_check[:] = False
-        else:
-            self.add_nb_module(Id, range)
-        
+        self.add_nb_module(Id, range)
+
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
@@ -243,36 +208,43 @@ class uwb_agent:
 
 
     def calc_pos_LS(self):
-        nodes = 7
+        nodes = 4
         a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
-        x = np.array([ a[0], b[0], c[0], d[0], e[0], f[0], g[0] ])
-        y = np.array([ a[1], b[1], c[1], d[1], e[1], f[1], g[1] ])
-        z = np.array([ a[2], b[2], c[2], d[2], e[2], f[2], g[2] ])
+        x = np.array([ a[0], b[0], c[0], d[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2] ])
 
-        A = np.zeros((nodes, 3))
-        B = np.zeros(nodes)
+        A = np.zeros((nodes-1, 3))
+        B = np.zeros(nodes-1)
+
+        X = np.zeros(3)
+
+        q = np.zeros(nodes)
         r = self.get_ranges()
 
-        n = nodes-2
         for i in range(nodes):
-            A[i][0] = 2*x[n] - 2*x[i]
-            A[i][1] = 2*y[n] - 2*y[i]
-            A[i][2] = 2*z[n] - 2*z[i]
+            q[i] = (r[i]**2 - x[i]**2 - y[i]**2 - z[i]**2) / 2
 
-            B[i] = r[i]**2 - r[n]**2 - x[i]**2 - y[i]**2 - z[i]**2 + x[n]**2 + y[n]**2 + z[n]**2
-
-        '''
-        print('A:')
-        print(A)
-        print('B:')
-        print(B)
-        '''
-
-        res = np.linalg.lstsq(A,B)
-        #print(res)
-        return res[0]
         
-        
+        for i in range(nodes-1):
+            #print i 
+            A[i][0] = x[0] - x[i+1]
+            A[i][1] = y[0] - y[i+1]
+            A[i][2] = z[0] - z[i+1]
+
+            B[i] = q[i+1] - q[0]
+
+        #invATA = np.linalg.inv(np.dot(A.T, A))
+        #ATb = np.dot(A.T, B)
+        X = np.dot(np.linalg.inv(A), B)
+
+        #res = scip.linalg.solve(A, B)
+        #print(X)
+        if self.KF_started:
+            self.UAV_KF.update(z=X)
+            return self.UAV_KF.get_state
+        else:
+            return X
 
 
     def clean_cos(self, cos_angle):
@@ -308,7 +280,7 @@ class uwb_agent:
         A = np.array([0.0, 0.0, 0.0])
         B = np.array([d  , 0.0, 0.0])
         C = np.array([d/2, dy, 0.0])
-        D = np.array([d/2, -dy, 0.0])
+        D = np.array([d/2, -dy, 0.1])
         E = np.array([-(d/2), dy, 0.0])
         F = np.array([-(d), 0.0, 0.0])
         G = np.array([-(d/2), -dy, 0.0])
