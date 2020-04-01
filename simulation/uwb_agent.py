@@ -22,14 +22,12 @@ PI = 3.14159265359
 DEBUG = False
 
 class KF:
-    def __init__(self, xyz, v_ned):
-        self.dt = 0.2
-        dt = self.dt
-        n_of_nodes = 3
+    def __init__(self, xyz, v_ned, dt):
+        self.dt = dt
 
-        dim_x = n_of_nodes + 3
+        dim_x = 6
         dim_u = 3
-        dim_z = n_of_nodes
+        dim_z = 3
         #self.kf = KalmanFilter(dim_x=18, dim_z=3, dim_u=3)
         
         self.x = np.array([     xyz[0],
@@ -41,13 +39,13 @@ class KF:
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 0.4 #7
+        self.R *= 0.2 #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
-        self.cov_u *= 0.02 #0.0001 cov(u, u)
+        self.cov_u *= 0.002 #0.0001 cov(u, u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
-        self.P *= 1000 # 500
+        self.P *= 500 # 500
         
         self.F = np.array([ [1, 0, 0, dt, 0, 0],
                             [0, 1, 0, 0, dt, 0],
@@ -100,8 +98,8 @@ class KF:
         self.P = np.dot((self.I - KH), self.P)
 
 
-    def get_state(self, id):
-            return self.x
+    def get_state(self):
+            return self.x[0:3]
 
     def get_plot_data(self):
         return np.sqrt( np.linalg.eig(self.P)[0][0:3] )
@@ -127,11 +125,11 @@ class uwb_agent:
 
         self.KF_started = False
 
-    def startKF(self, xyz, acc):
+    def startKF(self, xyz, acc, dt):
         r = self.get_ranges()
         self.kf_range_in = np.array([r[0], r[1], r[2]])
 
-        self.UAV_KF = KF(xyz, acc)
+        self.UAV_KF = KF(xyz, acc, dt)
         
         self.range_check = np.array([False,False,False])
         self.KF_started = True
@@ -207,12 +205,12 @@ class uwb_agent:
         return r
 
 
-    def calc_pos_LS(self):
+    def calc_pos_alg(self):
         nodes = 4
         a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
-        x = np.array([ a[0], b[0], c[0], d[0] ])
-        y = np.array([ a[1], b[1], c[1], d[1] ])
-        z = np.array([ a[2], b[2], c[2], d[2] ])
+        x = np.array([ a[0], b[0], c[0], d[0] ]) #, e[0], f[0], g[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1] ]) #, e[1], f[1], g[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2] ]) #, e[2], f[2], g[2] ])
 
         A = np.zeros((nodes-1, 3))
         B = np.zeros(nodes-1)
@@ -234,15 +232,12 @@ class uwb_agent:
 
             B[i] = q[i+1] - q[0]
 
-        #invATA = np.linalg.inv(np.dot(A.T, A))
-        #ATb = np.dot(A.T, B)
         X = np.dot(np.linalg.inv(A), B)
 
-        #res = scip.linalg.solve(A, B)
-        #print(X)
+        
         if self.KF_started:
             self.UAV_KF.update(z=X)
-            return self.UAV_KF.get_state
+            return self.UAV_KF.get_state()
         else:
             return X
 
@@ -283,7 +278,7 @@ class uwb_agent:
         D = np.array([d/2, -dy, 0.1])
         E = np.array([-(d/2), dy, 0.0])
         F = np.array([-(d), 0.0, 0.0])
-        G = np.array([-(d/2), -dy, 0.0])
+        G = np.array([-(d/2), -dy, 0.05])
 
         self.poslist = [A,B,C,D,E,F,G]
         return A, B, C, D, E, F, G
