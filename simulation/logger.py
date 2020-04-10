@@ -108,4 +108,4 @@ if __name__ == "__main__":
     l.run_logger()
 
     #l.calc_statistics()
-    l.plot()
+    #l.plot()

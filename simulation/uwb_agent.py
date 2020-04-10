@@ -39,14 +39,14 @@ class KF:
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 0.2 #7
+        self.R *= 0.5 #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
         self.cov_u *= 0.002 #0.0001 cov(u, u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
         self.P *= 500 # 500
-        
+
         self.F = np.array([ [1, 0, 0, dt, 0, 0],
                             [0, 1, 0, 0, dt, 0],
                             [0, 0, 1, 0, 0, dt],
@@ -206,11 +206,11 @@ class uwb_agent:
 
 
     def calc_pos_alg(self):
-        nodes = 4
+        nodes = 7
         a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
-        x = np.array([ a[0], b[0], c[0], d[0] ]) #, e[0], f[0], g[0] ])
-        y = np.array([ a[1], b[1], c[1], d[1] ]) #, e[1], f[1], g[1] ])
-        z = np.array([ a[2], b[2], c[2], d[2] ]) #, e[2], f[2], g[2] ])
+        x = np.array([ a[0], b[0], c[0], d[0], e[0], f[0], g[0] ])
+        y = np.array([ a[1], b[1], c[1], d[1], e[1], f[1], g[1] ])
+        z = np.array([ a[2], b[2], c[2], d[2], e[2], f[2], g[2] ])
 
         A = np.zeros((nodes-1, 3))
         B = np.zeros(nodes-1)
@@ -232,8 +232,10 @@ class uwb_agent:
 
             B[i] = q[i+1] - q[0]
 
-        X = np.dot(np.linalg.inv(A), B)
-
+        if nodes == 4:
+            X = np.dot(np.linalg.inv(A), B)
+        else:
+            X = np.linalg.lstsq(A, B, rcond=None)[0]
         
         if self.KF_started:
             self.UAV_KF.update(z=X)

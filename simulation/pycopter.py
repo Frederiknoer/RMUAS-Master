@@ -139,14 +139,14 @@ class pycopter:
 
         for t in self.time:
             #HANDLE RANGE MEASUREMENTS:
-            if self.it % 5 == 0 or self.it == 0:
+            if self.it % 15 == 0 or self.it == 0:
                 self.UAV_agent.handle_range_msg(self.RA0.id, self.get_dist(self.UAV.xyz, self.uwb0.xyz))
                 self.UAV_agent.handle_range_msg(self.RA1.id, self.get_dist(self.UAV.xyz, self.uwb1.xyz))
                 self.UAV_agent.handle_range_msg(self.RA2.id, self.get_dist(self.UAV.xyz, self.uwb2.xyz))
                 self.UAV_agent.handle_range_msg(self.RA3.id, self.get_dist(self.UAV.xyz, self.uwb3.xyz))
-                #self.UAV_agent.handle_range_msg(self.RA4.id, self.get_dist(self.UAV.xyz, self.uwb4.xyz))
-                #self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
-                #self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
+                self.UAV_agent.handle_range_msg(self.RA4.id, self.get_dist(self.UAV.xyz, self.uwb4.xyz))
+                self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
+                self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
 
             #HANDLE KALMAN FILTER:
             if self.UAV.xyz[2] < -2 and not kalmanStarted:
@@ -254,4 +254,4 @@ class pycopter:
 
         pl.pause(0)
 
-        #return self.Ed_log, self.est_pos, self.gt_pos
+        return self.Ed_log, self.est_pos, self.gt_pos
