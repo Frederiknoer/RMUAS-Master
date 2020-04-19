@@ -1,4 +1,16 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+import math
+import numpy as np
+import scipy as scipy
+from numpy.random import uniform
+import scipy.stats
+import sympy as symp
+import serial
+import localization as lx
+import particleFilter as PF
+import kalmanFilter as KF
+
 '''
 Position Rules:
 ID = 0: Origin of the local coordinate system (a)
@@ -7,103 +19,6 @@ ID = 2: Always posetive in both x- and y-components
 ID = 3: Always posetive in x-component and negative in y-component
 ID = 10: Always the UAV
 '''
-
-import math
-import numpy as np
-from filterpy.kalman import KalmanFilter
-from filterpy.common import Q_discrete_white_noise, reshape_z
-import sympy as symp
-import scipy as scip
-import serial
-import localization as lx
-
-
-PI = 3.14159265359
-DEBUG = False
-
-class KF:
-    def __init__(self, xyz, v_ned, dt):
-        self.dt = dt
-
-        dim_x = 6
-        dim_u = 3
-        dim_z = 3
-        #self.kf = KalmanFilter(dim_x=18, dim_z=3, dim_u=3)
-        
-        self.x = np.array([     xyz[0],
-                                xyz[1],
-                                xyz[2],
-                                v_ned[0],
-                                v_ned[1],
-                                v_ned[2] ])
-        
-        
-        self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 0.5 #7
-
-        self.cov_u = np.eye(dim_u) # process uncertainty
-        self.cov_u *= 0.002 #0.0001 cov(u, u)
-
-        self.P = np.eye(dim_x) # uncertainty covariance
-        self.P *= 500 # 500
-
-        self.F = np.array([ [1, 0, 0, dt, 0, 0],
-                            [0, 1, 0, 0, dt, 0],
-                            [0, 0, 1, 0, 0, dt],
-                            [0, 0, 0, 1, 0, 0 ],
-                            [0, 0, 0, 0, 1, 0 ],
-                            [0, 0, 0, 0, 0, 1 ] ])
-
-
-        self.G = np.array([ [(dt**2)/2, 0,  0],
-                            [0,  (dt**2)/2, 0],
-                            [0,  0, (dt**2)/2],
-                            [dt,  0,    0    ],
-                            [0,  dt,    0    ],
-                            [0,   0,   dt    ]  ])
-
-
-        self.H = np.array([ [ 1, 0, 0, 0, 0, 0 ],
-                            [ 0, 1, 0, 0, 0, 0 ],
-                            [ 0, 0, 1, 0, 0, 0 ]  ])
-
-        self.K = np.zeros((dim_x, dim_z)) # kalman gain
-
-        self.I = np.eye(dim_x)
-        
-        print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
-
-
-    def predict(self, u):
-        self.x = np.dot(self.F, self.x) + np.dot(self.G, u)
-
-        FP = np.dot(self.F, self.P)
-        FPFT = np.dot(FP, self.F.T)
-
-        Gcov_u = np.dot(self.G, self.cov_u)
-        Q = np.dot(Gcov_u, self.G.T)
-
-        self.P = FPFT + Q
-        
-
-    def update(self, z):
-        PHT = np.dot(self.P, self.H.T)
-        S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
-        self.K = np.dot(PHT, S)
-
-        y = z - np.dot(self.H, self.x)
-        self.x = self.x + np.dot(self.K, y)
-
-        KH = np.dot(self.K, self.H)
-        self.P = np.dot((self.I - KH), self.P)
-
-
-    def get_state(self):
-            return self.x[0:3]
-
-    def get_plot_data(self):
-        return np.sqrt( np.linalg.eig(self.P)[0][0:3] )
-
 
 class uwb_agent:
     def __init__(self, ID, d=None):
@@ -125,11 +40,26 @@ class uwb_agent:
 
         self.KF_started = False
 
+    def startPF(self, start_vel, dt):
+        anchors = self.predefine_ground_plane()
+        self.PF = PF.particleFilter(dt=dt, start_vel=start_vel, anchors=anchors)
+
+    def PFpredict(self, u):
+        self.PF.predict(u)
+
+    def PFupdate(self):
+        z = self.get_ranges()
+        self.PF.update(z)
+        self.PF.resample()
+        
+    def getPFpos(self):
+        return self.PF.estimate()
+
     def startKF(self, xyz, acc, dt):
         r = self.get_ranges()
         self.kf_range_in = np.array([r[0], r[1], r[2]])
 
-        self.UAV_KF = KF(xyz, acc, dt)
+        self.UAV_KF = KF.KF(xyz, acc, dt)
         
         self.range_check = np.array([False,False,False])
         self.KF_started = True
@@ -185,7 +115,7 @@ class uwb_agent:
             self.pairs = np.append(self.pairs, np.array([[Id1, Id2, range]]),axis=0)
 
     def get_ranges(self):
-        r = [None]*7
+        r = np.empty(7)
         for i, pair in enumerate(self.pairs):
             if pair[0] == 10:
                 if pair[1] == 0:
@@ -262,7 +192,7 @@ class uwb_agent:
 
         x0 = self.prev_val
 
-        res = scip.optimize.minimize(self.mse, x0, args=(c, r), method='SLSQP')
+        res = scipy.optimize.minimize(self.mse, x0, args=(c, r), method='SLSQP')
         self.prev_val = res.x
 
         return [self.prev_val[0], self.prev_val[1], -(abs(self.prev_val[2]))]

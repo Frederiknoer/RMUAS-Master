@@ -4,6 +4,7 @@ import numpy as np
 import math
 import sys
 import random
+import scipy.stats
 
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
@@ -92,7 +93,7 @@ class pycopter:
         # Simulation parameters
         self.tf = tf
         self.dt = dt
-        self.time = np.linspace(0, tf, tf/dt)
+        self.time = np.linspace(0, tf, int(tf/dt))
         self.it = 0
         self.frames = 50
 
@@ -122,13 +123,14 @@ class pycopter:
     def get_dist(self, p1, p2):
         mu, sigma = 0, 0.005
         std_err = np.random.normal(mu, sigma, 1)[0]
-        return (np.linalg.norm(p1 - p2))  + std_err
+        return (np.linalg.norm(p1 - p2)) + std_err
 
 
     def run(self, run_animation=False):
         dt = self.dt
         it = self.it
         kalmanStarted = False
+        PFstarted = False
 
         quadcolor = ['r', 'g', 'b']
         pl.close("all")
@@ -137,9 +139,11 @@ class pycopter:
         axis3d = fig.add_subplot(111, projection='3d')
         frames = self.frames
 
+
         for t in self.time:
+            print(t)
             #HANDLE RANGE MEASUREMENTS:
-            if self.it % 15 == 0 or self.it == 0:
+            if it % 25 == 0: # or self.it == 0:
                 self.UAV_agent.handle_range_msg(self.RA0.id, self.get_dist(self.UAV.xyz, self.uwb0.xyz))
                 self.UAV_agent.handle_range_msg(self.RA1.id, self.get_dist(self.UAV.xyz, self.uwb1.xyz))
                 self.UAV_agent.handle_range_msg(self.RA2.id, self.get_dist(self.UAV.xyz, self.uwb2.xyz))
@@ -147,7 +151,10 @@ class pycopter:
                 self.UAV_agent.handle_range_msg(self.RA4.id, self.get_dist(self.UAV.xyz, self.uwb4.xyz))
                 self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
                 self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
+                if PFstarted:
+                    self.UAV_agent.PFupdate()
 
+            '''
             #HANDLE KALMAN FILTER:
             if self.UAV.xyz[2] < -2 and not kalmanStarted:
                 self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc, dt)
@@ -158,6 +165,19 @@ class pycopter:
             
             #CALC POS:
             alg_pos = self.UAV_agent.calc_pos_alg()
+            '''
+            
+            #HANDLE PARTICLE FILTER
+            if self.UAV.xyz[2] < -1 and not PFstarted:
+                self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
+                PFstarted = True
+
+            if PFstarted:
+                alg_pos = self.UAV_agent.getPFpos()
+                #print (PF_pos)
+                self.UAV_agent.PFpredict(self.UAV.acc)
+            else:
+                alg_pos = self.UAV.xyz
 
 
             #HANDLE UAV MOVEMENT:

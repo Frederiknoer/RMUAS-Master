@@ -4,4 +4,10 @@ distance_tests/
 simulation/uwb_agent_1p.pyc
 simulation/pycopter.pyc
 simulation/uwb_agent.pyc
+simulation/kalmanFilter.pyc
+simulation/particleFilter.pyc
+fresnel05.png
+fresnel50.png
+fresnel_plot.py
+simulation/__pycache__/
 
