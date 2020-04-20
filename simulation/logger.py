@@ -18,12 +18,13 @@ n_of_sims = 1
 class logger:
     def __init__(self):
         self.N = n_of_sims
-        tf = 600
-        dt = 0.02
-
+        tf = 400
+        dt = 1/200
         self.time = np.linspace(0, tf, int(tf/dt))
 
         self.run_animation = False
+        self.pos_method = 'PF' #NF = No filter, KF = kalman filter, PF = particle filter
+
         self.pycopter = pycopter_class.pycopter(tf, dt)
 
         n = int(tf/dt)
@@ -36,10 +37,10 @@ class logger:
 
     def run_logger(self):
         for i in range(self.N):
-            temp_ed, temp_est, temp_gt = self.pycopter.run(run_animation=self.run_animation)
-            self.big_log_Ed  = np.append(self.big_log_Ed,  temp_ed)
-            self.big_log_est = np.append(self.big_log_est, temp_est)
-            self.big_log_gt  = np.append(self.big_log_gt,  temp_gt)
+            self.pycopter.run(method=self.pos_method, run_animation=self.run_animation) #temp_ed[i], temp_est[i], temp_gt[i] = 
+            #self.big_log_Ed  = np.append(self.big_log_Ed,  temp_ed)
+            #self.big_log_est = np.append(self.big_log_est, temp_est)
+            #self.big_log_gt  = np.append(self.big_log_gt,  temp_gt)
 
 
 

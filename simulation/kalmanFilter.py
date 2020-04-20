@@ -28,13 +28,13 @@ class KF:
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 0.5 #7
+        self.R *= 1.5 #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
-        self.cov_u *= 0.002 #0.0001 cov(u, u)
+        self.cov_u *= 0.0008 #0.0001 cov(u, u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
-        self.P *= 500 # 500
+        self.P *= 750 # 500
 
         self.F = np.array([ [1, 0, 0, dt, 0, 0],
                             [0, 1, 0, 0, dt, 0],

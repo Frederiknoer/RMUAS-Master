@@ -5,6 +5,7 @@ import math
 import sys
 import random
 import scipy.stats
+import csv
 
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
@@ -121,12 +122,22 @@ class pycopter:
         return (np.linalg.norm(p1 - p2))
 
     def get_dist(self, p1, p2):
-        mu, sigma = 0, 0.005
+        mu, sigma = 0, 0.015
         std_err = np.random.normal(mu, sigma, 1)[0]
+        '''
+        with open('sim_std_err.csv', mode='a') as writeFile:
+            writer = csv.writer(writeFile, delimiter=',')
+            writer.writerow([std_err])
+        writeFile.close()
+        '''
         return (np.linalg.norm(p1 - p2)) + std_err
 
 
-    def run(self, run_animation=False):
+    def run(self, method, run_animation=False):
+        if not (method == 'NF' or method == 'KF' or method == 'PF'):
+            print ("Wrong Input, your in put was: ", method)
+            return -1
+        
         dt = self.dt
         it = self.it
         kalmanStarted = False
@@ -139,11 +150,10 @@ class pycopter:
         axis3d = fig.add_subplot(111, projection='3d')
         frames = self.frames
 
-
         for t in self.time:
-            print(t)
             #HANDLE RANGE MEASUREMENTS:
-            if it % 25 == 0: # or self.it == 0:
+            if it % 50 == 0 or it == 0: # or method == 'NF':
+                print(t)
                 self.UAV_agent.handle_range_msg(self.RA0.id, self.get_dist(self.UAV.xyz, self.uwb0.xyz))
                 self.UAV_agent.handle_range_msg(self.RA1.id, self.get_dist(self.UAV.xyz, self.uwb1.xyz))
                 self.UAV_agent.handle_range_msg(self.RA2.id, self.get_dist(self.UAV.xyz, self.uwb2.xyz))
@@ -151,33 +161,39 @@ class pycopter:
                 self.UAV_agent.handle_range_msg(self.RA4.id, self.get_dist(self.UAV.xyz, self.uwb4.xyz))
                 self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
                 self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
-                if PFstarted:
+                if PFstarted and method == 'PF':
                     self.UAV_agent.PFupdate()
 
-            '''
+            #HANDLE POS NO FILTER:
+            if method == 'NF':
+                alg_pos = self.UAV_agent.calc_pos_alg()
+
+            
             #HANDLE KALMAN FILTER:
-            if self.UAV.xyz[2] < -2 and not kalmanStarted:
-                self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc, dt)
-                kalmanStarted = True
+            if method == 'KF':
+                if self.UAV.xyz[2] < -3 and not kalmanStarted:
+                    self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc, dt)
+                    kalmanStarted = True
+                
+                if kalmanStarted:
+                    self.UAV_agent.handle_acc_msg( self.UAV.acc )
+                
+                #CALC POS:
+                alg_pos = self.UAV_agent.calc_pos_alg()
             
-            if kalmanStarted:
-                self.UAV_agent.handle_acc_msg( self.UAV.acc )
-            
-            #CALC POS:
-            alg_pos = self.UAV_agent.calc_pos_alg()
-            '''
             
             #HANDLE PARTICLE FILTER
-            if self.UAV.xyz[2] < -1 and not PFstarted:
-                self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
-                PFstarted = True
+            if method == 'PF':
+                if self.UAV.xyz[2] < -3 and not PFstarted:
+                    self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
+                    PFstarted = True
 
-            if PFstarted:
-                alg_pos = self.UAV_agent.getPFpos()
-                #print (PF_pos)
-                self.UAV_agent.PFpredict(self.UAV.acc)
-            else:
-                alg_pos = self.UAV.xyz
+                if PFstarted:
+                    alg_pos = self.UAV_agent.getPFpos()
+                    #print (PF_pos)
+                    self.UAV_agent.PFpredict(self.UAV.acc)
+                else:
+                    alg_pos = self.UAV.xyz
 
 
             #HANDLE UAV MOVEMENT:
@@ -206,12 +222,13 @@ class pycopter:
             #LOGS:
             #self.est_pos[it] = alg_pos
             #self.gt_pos[it]  = self.UAV.xyz
-            self.Ed_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.xyz) ])
-            self.alg_log.xyz_h[it, :] = alg_pos
-            self.UAV_log.xyz_h[it, :] = self.UAV.xyz
-            self.UAV_log.att_h[it, :] = self.UAV.att
-            self.UAV_log.w_h[it, :] = self.UAV.w
-            self.UAV_log.v_ned_h[it, :] = self.UAV.v_ned
+            if kalmanStarted or PFstarted or method == 'NF':
+                self.Ed_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.xyz) ])
+                self.alg_log.xyz_h[it, :] = alg_pos
+                self.UAV_log.xyz_h[it, :] = self.UAV.xyz
+                self.UAV_log.att_h[it, :] = self.UAV.att
+                self.UAV_log.w_h[it, :] = self.UAV.w
+                self.UAV_log.v_ned_h[it, :] = self.UAV.v_ned
             
 
             it+=1
@@ -245,6 +262,7 @@ class pycopter:
                     pl.pause(0.001)
                     pl.draw()
 
+
         pl.figure(1)
         pl.title("2D Position [m]")
         pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
@@ -274,4 +292,4 @@ class pycopter:
 
         pl.pause(0)
 
-        return self.Ed_log, self.est_pos, self.gt_pos
+        return self.Ed_log, self.alg_log, self.UAV_log

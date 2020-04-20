@@ -134,9 +134,25 @@ class uwb_agent:
                     r[6] = pair[2]
         return r
 
+    def get_4_closest_nodes(self, n, r):
+        idx = np.argsort(r)
+        new_r = np.empty(len(r))
+        new_n = np.empty((len(n),3))
+        #print("array before sort(r): ", r, "  (n): ", n)
+        for i in range(len(r-1)):
+            #print("len(r): ", len(r), "  len(n): ", len(n), "  i: ", i, "  idx[",i,"]: ", idx[i])
+            new_r[i] = r[idx[i]]
+            new_n[i,:] = n[idx[i],:]
+        #print("array after sort(r): ", new_r, "  (n): ", new_n)
+        return n, r
+
 
     def calc_pos_alg(self):
-        nodes = 7
+        use4 = True
+        if use4:
+            nodes = 4
+        else:
+            nodes = 7
         a,b,c,d,e,f,g = self.predefine_ground_plane() #A, B, C, D, E, F, G
         x = np.array([ a[0], b[0], c[0], d[0], e[0], f[0], g[0] ])
         y = np.array([ a[1], b[1], c[1], d[1], e[1], f[1], g[1] ])
@@ -149,6 +165,10 @@ class uwb_agent:
 
         q = np.zeros(nodes)
         r = self.get_ranges()
+        n = np.array([a,b,c,d,e,f,g])
+
+        if use4:
+            n, r = self.get_4_closest_nodes(n,r)
 
         for i in range(nodes):
             q[i] = (r[i]**2 - x[i]**2 - y[i]**2 - z[i]**2) / 2
@@ -162,7 +182,7 @@ class uwb_agent:
 
             B[i] = q[i+1] - q[0]
 
-        if nodes == 4:
+        if use4:
             X = np.dot(np.linalg.inv(A), B)
         else:
             X = np.linalg.lstsq(A, B, rcond=None)[0]
