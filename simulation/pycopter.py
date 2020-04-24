@@ -134,7 +134,7 @@ class pycopter:
 
 
     def run(self, method, run_animation=False):
-        if not (method == 'NF' or method == 'KF' or method == 'PF'):
+        if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF'):
             print ("Wrong Input, your in put was: ", method)
             return -1
         
@@ -142,6 +142,7 @@ class pycopter:
         it = self.it
         kalmanStarted = False
         PFstarted = False
+        PKFstarted = False
 
         quadcolor = ['r', 'g', 'b']
         pl.close("all")
@@ -163,6 +164,8 @@ class pycopter:
                 self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
                 if PFstarted and method == 'PF':
                     self.UAV_agent.PFupdate()
+                if PKFstarted and method == 'PKF':
+                    self.UAV_agent.updatePKF()
 
             #HANDLE POS NO FILTER:
             if method == 'NF':
@@ -194,6 +197,20 @@ class pycopter:
                     self.UAV_agent.PFpredict(self.UAV.acc)
                 else:
                     alg_pos = self.UAV.xyz
+
+            #HANDLE PARTICLE KALMAN FILTER
+            if method == 'PKF':
+                if self.UAV.xyz[2] < -3 and not PKFstarted:
+                    self.UAV_agent.startPKF(dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
+                    PKFstarted = True
+                
+                if PKFstarted:
+                    alg_pos = self.UAV_agent.get_PKFstate()
+                    self.UAV_agent.predictPKF(self.UAV.acc)
+                else:
+                    alg_pos = self.UAV.xyz
+            
+
 
 
             #HANDLE UAV MOVEMENT:
@@ -241,7 +258,7 @@ class pycopter:
                 if it%frames == 0:
                     pl.figure(0)
                     axis3d.cla()
-                    ani.draw3d(axis3d, self.uwb0.xyz, self.uwb0.Rot_bn(), quadcolor[2])
+                    ani.draw3d(axis3d, self.uwb0.xyz, self.uwb0.Rot_bn(), quadcolor[0])
 
                     ani.draw3d(axis3d, self.uwb1.xyz, self.uwb1.Rot_bn(), quadcolor[0])
                     ani.draw3d(axis3d, self.uwb2.xyz, self.uwb2.Rot_bn(), quadcolor[0])
@@ -252,6 +269,13 @@ class pycopter:
                     ani.draw3d(axis3d, self.uwb6.xyz, self.uwb6.Rot_bn(), quadcolor[0])
 
                     ani.draw3d(axis3d, self.UAV.xyz, self.UAV.Rot_bn(), quadcolor[1])
+                    '''
+                    if PFstarted:
+                        particles = self.UAV_agent.get_particles()
+                        for particle in particles:
+                            ani.draw3d(axis3d, particle, self.UAV.Rot_bn(), quadcolor[2])
+                    '''
+
                     axis3d.set_xlim(-6, 6)
                     axis3d.set_ylim(-6, 6)
                     axis3d.set_zlim(0, 10)
@@ -262,16 +286,19 @@ class pycopter:
                     pl.pause(0.001)
                     pl.draw()
 
+                    #if PFstarted:
+                    #    input(" ")
+
 
         pl.figure(1)
         pl.title("2D Position [m]")
-        pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
+        #pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
         pl.plot(self.UAV_log.xyz_h[:, 0], self.UAV_log.xyz_h[:, 1], label="Ground Truth(x,y)", color=quadcolor[0])
         pl.xlabel("East")
         pl.ylabel("South")
         pl.legend()
 
-
+        '''
         pl.figure(2)
         pl.title("Error Distance [m]")
         pl.plot(self.time, self.Ed_log[:, 0], label="Distance: est_pos - true_pos", color=quadcolor[2])
@@ -279,11 +306,11 @@ class pycopter:
         pl.ylabel("Formation distance error [m]")
         pl.grid()
         pl.legend()
-
+        '''
 
         pl.figure(3)
         pl.title("Altitude Over Time [m]")
-        pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
+        #pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
         pl.plot(self.time, self.UAV_log.xyz_h[:, 2], label="Ground Truth(alt)", color=quadcolor[0])
         pl.xlabel("Time [s]")
         pl.ylabel("Altitude [m]")

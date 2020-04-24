@@ -15,14 +15,13 @@ import localization as lx
 
 class particleFilter:
     def __init__(self, start_vel, dt, anchors):
-        self.N = 10000
+        self.N = 15000
         self.dt = dt
         self.anchors = anchors
 
         #Init particles and weights
         self.vel_x, self.vel_y, self.vel_z = start_vel
 
-        self.particles = np.empty(( self.N, 3 ))
         self.weights = np.full((self.N, 1), 1.0)
         self.particles = np.zeros((self.N,3))
         self.particles[:,0] = np.random.uniform(-4.0, 4.0, size=self.N)
@@ -63,6 +62,9 @@ class particleFilter:
         idx = np.argsort(self.weights)[:50]
         return np.mean(self.particles[idx], axis=0)
         #return self.particles[max_idx]
+
+    def get_particles(self):
+        return self.particles
 
 '''
 if __name__ == "__main__":

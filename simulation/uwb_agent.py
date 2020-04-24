@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import math
 import numpy as np
@@ -10,6 +10,7 @@ import serial
 import localization as lx
 import particleFilter as PF
 import kalmanFilter as KF
+import particleKalmanFilter as PKF
 
 '''
 Position Rules:
@@ -28,18 +29,17 @@ class uwb_agent:
         self.M = np.array([self.id]) #Modules
         self.N = np.array([]) #Neigbours
         self.E = np.array([0]) #
-        self.P = np.array([]) #
         self.pairs = np.empty((0,3))
-
-        self.val = np.array([])
-        self.prev_val = np.array([1.5, 2.0, 0.1])
-
         self.poslist = np.array([])
 
-        self.avg_range_arr = np.empty([ 7,4 ])
+        #MSE:
+        self.prev_val = np.array([1.5, 2.0, 0.1])
 
+        #FILTERS:
         self.KF_started = False
 
+
+    # ***************** PARTICLE FILTER FUNCTIONS *****************
     def startPF(self, start_vel, dt):
         anchors = self.predefine_ground_plane()
         self.PF = PF.particleFilter(dt=dt, start_vel=start_vel, anchors=anchors)
@@ -55,6 +55,10 @@ class uwb_agent:
     def getPFpos(self):
         return self.PF.estimate()
 
+    def get_particles(self):
+        return self.PF.get_particles()
+
+    # ***************** KALMAN FILTER FUNCTIONS *****************
     def startKF(self, xyz, acc, dt):
         r = self.get_ranges()
         self.kf_range_in = np.array([r[0], r[1], r[2]])
@@ -64,33 +68,35 @@ class uwb_agent:
         self.range_check = np.array([False,False,False])
         self.KF_started = True
 
-    
-    def get_plot_data(self):
-        return self.UAV_KF.get_plot_data()
+    def get_kf_state(self):
+        return self.UAV_KF.get_state()
 
 
-    def mvg_avg(self, id, range):
-        self.avg_range_arr[id] = np.roll(self.avg_range_arr[id], 1)
-        self.avg_range_arr[id][0] = range
-        return np.average(self.avg_range_arr[id])
+    # ***************** KALMAN PARTICLE FILTER FUNCTIONS *****************
+    def startPKF(self, dt, xyz, v_ned):
+        anchors = self.predefine_ground_plane()
+        self.PKF = PKF.particleKalmanFilter(dt, xyz, v_ned, anchors)
+
+    def predictPKF(self, u):
+        self.PKF.predict(u)
+
+    def updatePKF(self):
+        z = self.get_ranges()
+        self.PKF.update(z)
+
+    def get_PKFstate(self, part='pos'):
+        return self.PKF.get_state(part=part)
 
 
+    # ***************** HANDLE INPUT FUNCTIONS *****************
     def handle_range_msg(self, Id, range):
         self.add_nb_module(Id, range)
-
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
 
     def handle_acc_msg(self, acc_in):
         self.UAV_KF.predict(acc_in)
-
-    def get_kf_state(self, Id):
-        return self.UAV_KF.get_state(Id)
-
-    def calc_dist(self, p1, p2):
-        return np.linalg.norm(p1 - p2)
-
 
     def add_nb_module(self, Id, range):
         if not any(x == Id for x in self.N):
@@ -114,6 +120,13 @@ class uwb_agent:
         if not pair_present:
             self.pairs = np.append(self.pairs, np.array([[Id1, Id2, range]]),axis=0)
 
+    # ***************** UTILITY FUNCTIONS *****************
+    def calc_dist(self, p1, p2):
+        return np.linalg.norm(p1 - p2)
+
+    def clean_cos(self, cos_angle):
+        return min(1,max(cos_angle,-1))
+
     def get_ranges(self):
         r = np.empty(7)
         for i, pair in enumerate(self.pairs):
@@ -134,6 +147,21 @@ class uwb_agent:
                     r[6] = pair[2]
         return r
 
+    def predefine_ground_plane(self):
+        d = self.d
+        dy = d * (np.sqrt(3)/2)
+
+        A = np.array([0.0, 0.0, 0.0])
+        B = np.array([d  , 0.0, 0.0])
+        C = np.array([d/2, dy, 0.0])
+        D = np.array([d/2, -dy, 0.1])
+        E = np.array([-(d/2), dy, 0.0])
+        F = np.array([-(d), 0.0, 0.0])
+        G = np.array([-(d/2), -dy, 0.05])
+
+        self.poslist = [A,B,C,D,E,F,G]
+        return A, B, C, D, E, F, G
+
     def get_4_closest_nodes(self, n, r):
         idx = np.argsort(r)
         new_r = np.empty(len(r))
@@ -146,7 +174,53 @@ class uwb_agent:
         #print("array after sort(r): ", new_r, "  (n): ", new_n)
         return n, r
 
+    def define_ground_plane(self):
+        '''
+        Ground plane setup:
+           C
+        A     B
+           D
+        '''
+        temp_pair = []
+        #print(self.pairs)
+        for i in range((self.pairs.shape[0] - 1)):
+            temp_pair = [self.pairs[i][0], self.pairs[i][1], self.pairs[i][2]]
 
+            if 0 in temp_pair[0:2]:
+                idx1 = temp_pair[0:2].index(0)
+                if temp_pair[abs(idx1-1)] == 1: #Takes the other element than idx1
+                    c = temp_pair[2] #Range between ID0 and ID1
+                elif temp_pair[abs(idx1-1)] == 2:
+                    b = temp_pair[2] #Range between ID0 and ID2
+                elif temp_pair[abs(idx1-1)] == 3:
+                    e = temp_pair[2]
+
+            elif 1 in temp_pair[0:2]:
+                idx1 = temp_pair[0:2].index(1)
+                if temp_pair[abs(idx1-1)] == 2:
+                    a = temp_pair[2]
+                elif temp_pair[abs(idx1-1)] == 3:
+                    f = temp_pair[2]
+
+            else:
+                d = temp_pair[2]
+
+        range_list = np.array([a,b,c,d,e,f])
+        angle_a1 = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
+        angle_a2 = math.acos(self.clean_cos( (e**2 + c**2 - f**2) / (2 * e * c) ))
+        angle_b = math.acos(self.clean_cos( (a**2 + c**2 - b**2) / (2 * a * c) ))
+        angle_c = math.acos(self.clean_cos( (a**2 + b**2 - c**2) / (2 * a * b) ))
+
+        A = np.array([0.0, 0.0, 0.0])
+        B = np.array([c, 0.0, 0.0])
+        C = np.array([b*math.cos(angle_a1), b*math.sin(angle_a1), 0.0])
+        D = np.array([e*math.cos(angle_a2), -e*math.sin(angle_a2), 0.0])
+
+        self.poslist = np.array([A,B,C,D])
+        return A, B, C, D
+
+
+    # ***************** POSITION ESTIMATION FUNCTIONS *****************
     def calc_pos_alg(self):
         use4 = True
         if use4:
@@ -194,9 +268,6 @@ class uwb_agent:
             return X
 
 
-    def clean_cos(self, cos_angle):
-        return min(1,max(cos_angle,-1))
-
     def mse(self, x, c, r):
         mse = 0.0
         for location, distance in zip(c, r):
@@ -217,110 +288,62 @@ class uwb_agent:
 
         return [self.prev_val[0], self.prev_val[1], -(abs(self.prev_val[2]))]
 
-    def calc_pos_TRI(self):
-        pass
+    def get_uwb_id(self, data):
+        id_idx = data.find('from:')
+        if id_idx == -1:
+            return None
+        id = ''
+        while data[id_idx+6] != ' ':
+            id += data[id_idx+6]
+            id_idx += 1
+        id = id[:-1]
+        return id
 
-    def predefine_ground_plane(self):
-        d = self.d
-        dy = d * (np.sqrt(3)/2)
+    def get_uwb_range(self, data):
+        range_idx = data.find('Range:')
+        if range_idx == -1:
+            return None
+        data_val = (float(data[range_idx+7])) + (float(data[range_idx+9])*0.1) + (float(data[range_idx+10])*0.01)
+        return data_val
 
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([d  , 0.0, 0.0])
-        C = np.array([d/2, dy, 0.0])
-        D = np.array([d/2, -dy, 0.1])
-        E = np.array([-(d/2), dy, 0.0])
-        F = np.array([-(d), 0.0, 0.0])
-        G = np.array([-(d/2), -dy, 0.05])
-
-        self.poslist = [A,B,C,D,E,F,G]
-        return A, B, C, D, E, F, G
-
-
-    def define_ground_plane(self):
-        '''
-        Ground plane setup:
-           C
-        A     B
-           D
-        '''
-        temp_pair = []
-        #print(self.pairs)
-        for i in range((self.pairs.shape[0] - 1)):
-            temp_pair = [self.pairs[i][0], self.pairs[i][1], self.pairs[i][2]]
-
-            if 0 in temp_pair[0:2]:
-                idx1 = temp_pair[0:2].index(0)
-                if temp_pair[abs(idx1-1)] == 1: #Takes the other element than idx1
-                    c = temp_pair[2] #Range between ID0 and ID1
-                elif temp_pair[abs(idx1-1)] == 2:
-                    b = temp_pair[2] #Range between ID0 and ID2
-                elif temp_pair[abs(idx1-1)] == 3:
-                    e = temp_pair[2]
-
-            elif 1 in temp_pair[0:2]:
-                idx1 = temp_pair[0:2].index(1)
-                if temp_pair[abs(idx1-1)] == 2:
-                    a = temp_pair[2]
-                elif temp_pair[abs(idx1-1)] == 3:
-                    f = temp_pair[2]
-
-            else:
-                d = temp_pair[2]
-
-        range_list = np.array([a,b,c,d,e,f])
-        angle_a1 = math.acos(self.clean_cos( (b**2 + c**2 - a**2) / (2 * b * c) ))
-        angle_a2 = math.acos(self.clean_cos( (e**2 + c**2 - f**2) / (2 * e * c) ))
-        angle_b = math.acos(self.clean_cos( (a**2 + c**2 - b**2) / (2 * a * c) ))
-        angle_c = math.acos(self.clean_cos( (a**2 + b**2 - c**2) / (2 * a * b) ))
-
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([c, 0.0, 0.0])
-        C = np.array([b*math.cos(angle_a1), b*math.sin(angle_a1), 0.0])
-        D = np.array([e*math.cos(angle_a2), -e*math.sin(angle_a2), 0.0])
-
-        self.poslist = np.array([A,B,C,D])
-        return A, B, C, D
-
-        
-
-'''
-def get_uwb_id(data):
-    id_idx = data.find('from:')
-    if id_idx == -1:
-        return None
-    id = ''
-    while data[id_idx+6] != ' ':
-        id += data[id_idx+6]
-        id_idx += 1
-    id = id[:-1]
-    return id
-
-def get_uwb_range(data):
-    range_idx = data.find('Range:')
-    if range_idx == -1:
-        return None
-    data_val = (float(data[range_idx+7])) + (float(data[range_idx+9])*0.1) + (float(data[range_idx+10])*0.01)
-    return data_val
 
 if __name__ == "__main__":
+    agent = uwb_agent(10)
     ser = serial.Serial('/dev/ttyUSB0', 115200)
-    UAV_agent = uwb_agent( ID=10 )
-    id_list = []
 
+    n_of_anchors = 1
+    range_list = np.array([])
+    id_list    = np.array([])
+    print()
+    
     while True:
-        data = ser.readline()
-        if data:
-            id = get_uwb_id(data)
-            range = 0.9 * get_uwb_range(data) - 23.52
-            print("Id: ", id, "  range: ", range)
-            UAV_agent.handle_range_msg(Id=id, range=range)
+        data = ser.readline().decode("utf-8")
+        print("Raw Data: ", data)
+        if data[0] == 'f':
+            id = int(agent.get_uwb_id(data),16)
+            range = agent.get_uwb_range(data)
 
-            if not (id in id_list):
-                id_list.append(id)
-            if len(id_list) >= 3:
-                print(UAV_agent.calc_pos_MSE())
+            if id_list.size == 0:
+                id_list = np.append(id_list, id)
+                range_list = np.append(range_list, range)
+            elif not any(x == id for x in id_list):
+                id_list = np.append(id_list, id)
+                range_list = np.append(range_list, range)
+            else:
+                for i, elem in enumerate(id_list):
+                    if elem == id:
+                        range_list[i] = range
+
+
+            print("id list: ", id_list)
+            print("range list: ", range_list)
+
+            
+            
+                
+
+            
 
 
 
-#END
-'''
+

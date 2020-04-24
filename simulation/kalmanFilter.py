@@ -76,6 +76,7 @@ class KF:
         
 
     def update(self, z):
+        print(z.shape)
         PHT = np.dot(self.P, self.H.T)
         S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
         self.K = np.dot(PHT, S)

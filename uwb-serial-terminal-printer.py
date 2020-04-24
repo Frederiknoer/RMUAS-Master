@@ -10,4 +10,4 @@ ser = serial.Serial('/dev/ttyUSB0', baud)
 while True:
     data = ser.readline()
     if data:
-        print(data)
+        print(data.decode("utf-8"))

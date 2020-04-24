@@ -18,12 +18,12 @@ n_of_sims = 1
 class logger:
     def __init__(self):
         self.N = n_of_sims
-        tf = 400
-        dt = 1/200
+        tf = 500
+        dt = 1/100
         self.time = np.linspace(0, tf, int(tf/dt))
 
         self.run_animation = False
-        self.pos_method = 'PF' #NF = No filter, KF = kalman filter, PF = particle filter
+        self.pos_method = 'NF' #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
 
         self.pycopter = pycopter_class.pycopter(tf, dt)
 
