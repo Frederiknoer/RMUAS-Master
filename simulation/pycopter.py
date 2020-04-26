@@ -106,6 +106,7 @@ class pycopter:
         #self.gt_pos  = np.zeros((self.time.size, 3))
 
         self.Ed_log = np.zeros((self.time.size, 1))
+        self.Ed_vel_log = np.zeros((self.time.size, 1))
         self.eig_log = np.zeros((self.time.size, 3))
 
         self.RA0 = range_agent.uwb_agent( ID=0 )
@@ -152,6 +153,7 @@ class pycopter:
         frames = self.frames
 
         for t in self.time:
+            acc_err = np.random.normal(0, 0.002, 1)[0]
             #HANDLE RANGE MEASUREMENTS:
             if it % 50 == 0 or it == 0: # or method == 'NF':
                 print(t)
@@ -170,19 +172,21 @@ class pycopter:
             #HANDLE POS NO FILTER:
             if method == 'NF':
                 alg_pos = self.UAV_agent.calc_pos_alg()
+                alg_vel = self.UAV.v_ned
 
             
             #HANDLE KALMAN FILTER:
             if method == 'KF':
                 if self.UAV.xyz[2] < -3 and not kalmanStarted:
-                    self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc, dt)
+                    self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc + acc_err, dt)
                     kalmanStarted = True
                 
                 if kalmanStarted:
-                    self.UAV_agent.handle_acc_msg( self.UAV.acc )
+                    self.UAV_agent.handle_acc_msg( self.UAV.acc + acc_err )
                 
                 #CALC POS:
                 alg_pos = self.UAV_agent.calc_pos_alg()
+                alg_vel = self.UAV.v_ned
             
             
             #HANDLE PARTICLE FILTER
@@ -194,23 +198,24 @@ class pycopter:
                 if PFstarted:
                     alg_pos = self.UAV_agent.getPFpos()
                     #print (PF_pos)
-                    self.UAV_agent.PFpredict(self.UAV.acc)
+                    self.UAV_agent.PFpredict(self.UAV.acc + acc_err)
                 else:
                     alg_pos = self.UAV.xyz
+                    alg_vel = self.UAV.v_ned
 
             #HANDLE PARTICLE KALMAN FILTER
             if method == 'PKF':
                 if self.UAV.xyz[2] < -3 and not PKFstarted:
-                    self.UAV_agent.startPKF(dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
+                    self.UAV_agent.startPKF(self.UAV.acc + acc_err, dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
                     PKFstarted = True
-                
                 if PKFstarted:
                     alg_pos = self.UAV_agent.get_PKFstate()
-                    self.UAV_agent.predictPKF(self.UAV.acc)
+                    self.UAV_agent.predictPKF(self.UAV.acc + acc_err)
                 else:
                     alg_pos = self.UAV.xyz
-            
+                    alg_vel = self.UAV.v_ned
 
+            #print(alg_pos)
 
 
             #HANDLE UAV MOVEMENT:
@@ -239,8 +244,9 @@ class pycopter:
             #LOGS:
             #self.est_pos[it] = alg_pos
             #self.gt_pos[it]  = self.UAV.xyz
-            if kalmanStarted or PFstarted or method == 'NF':
+            if kalmanStarted or PFstarted or PKFstarted or method == 'NF':
                 self.Ed_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.xyz) ])
+                self.Ed_vel_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.v_ned) ])
                 self.alg_log.xyz_h[it, :] = alg_pos
                 self.UAV_log.xyz_h[it, :] = self.UAV.xyz
                 self.UAV_log.att_h[it, :] = self.UAV.att
@@ -291,32 +297,37 @@ class pycopter:
 
 
         pl.figure(1)
-        pl.title("2D Position [m]")
-        #pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
+        pl.title(method +" 2D Position [m]")
+        pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
         pl.plot(self.UAV_log.xyz_h[:, 0], self.UAV_log.xyz_h[:, 1], label="Ground Truth(x,y)", color=quadcolor[0])
         pl.xlabel("East")
         pl.ylabel("South")
         pl.legend()
+        pl.savefig('results/'+method+'_2D_pos.png')
 
-        '''
+        
         pl.figure(2)
-        pl.title("Error Distance [m]")
+        pl.title(method+" Error Distance [m]")
         pl.plot(self.time, self.Ed_log[:, 0], label="Distance: est_pos - true_pos", color=quadcolor[2])
+        #pl.ylim(0,1)
         pl.xlabel("Time [s]")
         pl.ylabel("Formation distance error [m]")
         pl.grid()
         pl.legend()
-        '''
+        pl.savefig('results/'+method+'_err_pos.png')
+        
 
         pl.figure(3)
-        pl.title("Altitude Over Time [m]")
-        #pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
+        pl.title(method+" Altitude Over Time [m]")
+        pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
         pl.plot(self.time, self.UAV_log.xyz_h[:, 2], label="Ground Truth(alt)", color=quadcolor[0])
+        #pl.ylim(-5, 0.5)
         pl.xlabel("Time [s]")
         pl.ylabel("Altitude [m]")
         pl.grid()
         pl.legend(loc=2)
+        pl.savefig('results/'+method+'_alt.png')
 
-        pl.pause(0)
+        #pl.pause(0)
 
         return self.Ed_log, self.alg_log, self.UAV_log

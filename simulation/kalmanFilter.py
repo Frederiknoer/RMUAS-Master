@@ -28,13 +28,13 @@ class KF:
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 1.5 #7
+        self.R *= 2.0 #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
-        self.cov_u *= 0.0008 #0.0001 cov(u, u)
+        self.cov_u *= 0.0002 #0.0001 cov(u, u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
-        self.P *= 750 # 500
+        self.P *= 1000 # 500
 
         self.F = np.array([ [1, 0, 0, dt, 0, 0],
                             [0, 1, 0, 0, dt, 0],
@@ -76,7 +76,7 @@ class KF:
         
 
     def update(self, z):
-        print(z.shape)
+        z = np.reshape(z, (3,))
         PHT = np.dot(self.P, self.H.T)
         S = np.linalg.inv( np.dot(self.H, PHT) + self.R )
         self.K = np.dot(PHT, S)
@@ -89,7 +89,7 @@ class KF:
 
 
     def get_state(self):
-        return self.x[0:3]
+        return self.x
 
     def get_plot_data(self):
         return np.sqrt( np.linalg.eig(self.P)[0][0:3] )

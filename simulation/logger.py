@@ -23,7 +23,7 @@ class logger:
         self.time = np.linspace(0, tf, int(tf/dt))
 
         self.run_animation = False
-        self.pos_method = 'NF' #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
+        self.pos_method = 'PKF' #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
 
         self.pycopter = pycopter_class.pycopter(tf, dt)
 

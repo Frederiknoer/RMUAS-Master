@@ -44,7 +44,7 @@ class uwb_agent:
         anchors = self.predefine_ground_plane()
         self.PF = PF.particleFilter(dt=dt, start_vel=start_vel, anchors=anchors)
 
-    def PFpredict(self, u):
+    def PFpredict(self, u, v=None):
         self.PF.predict(u)
 
     def PFupdate(self):
@@ -60,32 +60,33 @@ class uwb_agent:
 
     # ***************** KALMAN FILTER FUNCTIONS *****************
     def startKF(self, xyz, acc, dt):
-        r = self.get_ranges()
-        self.kf_range_in = np.array([r[0], r[1], r[2]])
-
         self.UAV_KF = KF.KF(xyz, acc, dt)
         
         self.range_check = np.array([False,False,False])
         self.KF_started = True
 
     def get_kf_state(self):
-        return self.UAV_KF.get_state()
+        return self.UAV_KF.get_state()[0:3]
 
 
     # ***************** KALMAN PARTICLE FILTER FUNCTIONS *****************
-    def startPKF(self, dt, xyz, v_ned):
-        anchors = self.predefine_ground_plane()
-        self.PKF = PKF.particleKalmanFilter(dt, xyz, v_ned, anchors)
+    def startPKF(self, acc, dt, xyz, v_ned):
+        print("STARTING PARTICLE KALMAN FILTER")
+        self.startPF(v_ned, dt)
+        self.startKF(xyz, acc, dt)
 
     def predictPKF(self, u):
-        self.PKF.predict(u)
+        self.UAV_KF.predict(u)
+        kf_v = self.get_kf_state()[3:6]
+        self.PFpredict(u=u, v=kf_v)
 
     def updatePKF(self):
-        z = self.get_ranges()
-        self.PKF.update(z)
+        self.PFupdate()
+        pf_pos = self.getPFpos()
+        self.UAV_KF.update(z=pf_pos)
 
-    def get_PKFstate(self, part='pos'):
-        return self.PKF.get_state(part=part)
+    def get_PKFstate(self):
+        return self.UAV_KF.get_state()[0:3]
 
 
     # ***************** HANDLE INPUT FUNCTIONS *****************
