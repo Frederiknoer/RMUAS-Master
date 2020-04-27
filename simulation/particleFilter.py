@@ -14,8 +14,17 @@ import serial
 import localization as lx
 
 class particleFilter:
-    def __init__(self, start_vel, dt, anchors):
-        self.N = 12500
+    def __init__(self, start_vel, dt, anchors, option=0):
+        # option 0 = standalone, option 1 = PKF
+        self.option = option
+
+        if option == 0: #PF
+            self.N = 10000 #10000
+            self.upd_std_dev = 2.2 #2.2
+        else: #PKF:
+            self.N = 7500 #10000
+            self.upd_std_dev = 2.5 #2.2
+
         self.dt = dt
         self.anchors = anchors
 
@@ -28,14 +37,21 @@ class particleFilter:
         self.particles[:,1] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,2] = np.random.uniform(-3.5, 0.5, size=self.N)
 
-
         print("Particle Filter initiated with ", self.N, " Particles")
 
+    def get_return_vals(self):
+        return self.N, self.upd_std_dev
+
     def predict(self, u, v=None):
-        mu, sigma = 0, 0.0002
-        self.particles[:, 0] += self.vel_x*self.dt + u[0]*((self.dt**2)/2) #+ np.random.normal(mu, sigma, 1)[0]
-        self.particles[:, 1] += self.vel_y*self.dt + u[1]*((self.dt**2)/2) #+ np.random.normal(mu, sigma, 1)[0]
-        self.particles[:, 2] += self.vel_z*self.dt + u[2]*((self.dt**2)/2) #+ np.random.normal(mu, sigma, 1)[0]
+        if self.option == 0:
+            mu, sigma = 0, 0.0005 #0.0002
+            noise = np.random.normal(mu, sigma, 1)[0]
+        else:
+            mu, sigma = 0, 0.0005 #0.0002
+            noise = np.random.normal(mu, sigma, 1)[0]
+        self.particles[:, 0] += self.vel_x*self.dt + u[0]*((self.dt**2)/2) + noise
+        self.particles[:, 1] += self.vel_y*self.dt + u[1]*((self.dt**2)/2) + noise
+        self.particles[:, 2] += self.vel_z*self.dt + u[2]*((self.dt**2)/2) + noise
         if v == None:
             self.vel_x += u[0]*self.dt
             self.vel_y += u[1]*self.dt
@@ -49,7 +65,7 @@ class particleFilter:
         p = self.particles
         for i, anchor in enumerate(self.anchors):
             est_dist = (((p[:,0] - anchor[0])**2 + (p[:,1]-anchor[1])**2 + (p[:,2]-anchor[2])**2)**0.5)
-            prob = scipy.stats.norm(est_dist, 3.0).pdf(z[i])
+            prob = scipy.stats.norm( est_dist, self.upd_std_dev ).pdf(z[i])
             prob = np.resize(prob,(self.N, 1))
             self.weights = np.multiply(self.weights, prob) 
 
@@ -64,8 +80,8 @@ class particleFilter:
     def estimate(self):
         #return np.mean(self.particles, axis=0)
         #max_idx = np.argmax(self.weights)
-        idx = np.argsort(self.weights)[:100]
-        return np.mean(self.particles[idx], axis=0)
+        idx = np.argsort(self.weights)[250:]
+        return np.mean(self.particles, axis=0)
         #return self.particles[max_idx]
 
     def get_particles(self):

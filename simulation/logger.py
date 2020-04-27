@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from scipy import linalg as la
 import matplotlib.pyplot as pl
 import numpy as np
@@ -23,7 +25,8 @@ class logger:
         self.time = np.linspace(0, tf, int(tf/dt))
 
         self.run_animation = False
-        self.pos_method = 'PKF' #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
+        print(sys.argv[1])
+        self.pos_method = sys.argv[1] #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
 
         self.pycopter = pycopter_class.pycopter(tf, dt)
 

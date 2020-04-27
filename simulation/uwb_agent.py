@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import math
 import numpy as np
@@ -11,6 +11,7 @@ import localization as lx
 import particleFilter as PF
 import kalmanFilter as KF
 import particleKalmanFilter as PKF
+import time
 
 '''
 Position Rules:
@@ -38,19 +39,56 @@ class uwb_agent:
         #FILTERS:
         self.KF_started = False
 
+        #TIME HANDLERS:
+        self.time_taken_pf_upd = 0.0
+        self.time_instanes_pf_upd = 0
+        self.time_taken_pf_predict = 0.0
+        self.time_instanes_pf_predict = 0
+        self.time_taken_pf_resamp = 0.0
+        self.time_instanes_pf_resamp = 0
+
+        self.time_taken_kf_upd = 0.0
+        self.time_instanes_kf_upd = 0
+        self.time_taken_kf_predict = 0.0
+        self.time_instanes_kf_predict = 0
+
+        self.time_taken_geo = 0.0
+        self.time_instanes_geo = 0
+
+    # ***************** RETURN TIME VALUES ************************
+    def get_time_vals(self, method):
+        if method == 'NF':
+            return ((self.time_taken_geo) / (self.time_instanes_geo))
+        elif method == 'KF':
+            return [((self.time_taken_kf_predict) / (self.time_instanes_kf_predict)) ,  ((self.time_taken_kf_upd) / (self.time_instanes_kf_upd))]
+        elif method == 'PF':
+            return [((self.time_taken_pf_predict) / (self.time_instanes_pf_predict)) ,  ((self.time_taken_pf_upd) / (self.time_instanes_pf_upd))]
+        elif method == 'PKF':
+            pass
 
     # ***************** PARTICLE FILTER FUNCTIONS *****************
-    def startPF(self, start_vel, dt):
+    def startPF(self, start_vel, dt, option=0):
         anchors = self.predefine_ground_plane()
-        self.PF = PF.particleFilter(dt=dt, start_vel=start_vel, anchors=anchors)
+        self.PF = PF.particleFilter(dt=dt, start_vel=start_vel, anchors=anchors, option=option)
+        return self.PF.get_return_vals()
 
     def PFpredict(self, u, v=None):
+        prev_t = time.time()
         self.PF.predict(u)
+        self.time_taken_pf_predict += time.time() - prev_t
+        self.time_instanes_pf_predict += 1
 
     def PFupdate(self):
+        prev_t = time.time()
         z = self.get_ranges()
         self.PF.update(z)
+        self.time_taken_pf_upd += time.time() - prev_t
+        self.time_instanes_pf_upd += 1
+
+        prev_t = time.time()
         self.PF.resample()
+        self.time_taken_pf_resamp += time.time() - prev_t
+        self.time_instanes_pf_resamp += 1
         
     def getPFpos(self):
         return self.PF.estimate()
@@ -59,11 +97,16 @@ class uwb_agent:
         return self.PF.get_particles()
 
     # ***************** KALMAN FILTER FUNCTIONS *****************
-    def startKF(self, xyz, acc, dt):
-        self.UAV_KF = KF.KF(xyz, acc, dt)
-        
-        self.range_check = np.array([False,False,False])
+    def startKF(self, xyz, v_ned, dt, option=0):
+        self.UAV_KF = KF.KF(xyz, v_ned, dt, option=option)
         self.KF_started = True
+        return self.UAV_KF.get_return_vals()
+
+    def KFpredict(self, acc):
+        prev_t = time.time()
+        self.UAV_KF.predict(acc)
+        self.time_taken_kf_predict += time.time() - prev_t
+        self.time_instanes_kf_predict += 1
 
     def get_kf_state(self):
         return self.UAV_KF.get_state()[0:3]
@@ -72,8 +115,9 @@ class uwb_agent:
     # ***************** KALMAN PARTICLE FILTER FUNCTIONS *****************
     def startPKF(self, acc, dt, xyz, v_ned):
         print("STARTING PARTICLE KALMAN FILTER")
-        self.startPF(v_ned, dt)
-        self.startKF(xyz, acc, dt)
+        pf_val1, pf_val2 = self.startPF(v_ned, dt, option=1)
+        kf_val1, kf_val2 = self.startKF(xyz, v_ned, dt, option=1)
+        return kf_val1, kf_val2, pf_val1, pf_val2
 
     def predictPKF(self, u):
         self.UAV_KF.predict(u)
@@ -95,9 +139,6 @@ class uwb_agent:
 
     def handle_other_msg(self, Id1, Id2, range):
         self.add_pair(Id1, Id2, range)
-
-    def handle_acc_msg(self, acc_in):
-        self.UAV_KF.predict(acc_in)
 
     def add_nb_module(self, Id, range):
         if not any(x == Id for x in self.N):
@@ -223,7 +264,8 @@ class uwb_agent:
 
     # ***************** POSITION ESTIMATION FUNCTIONS *****************
     def calc_pos_alg(self):
-        use4 = True
+        prev_t = time.time()
+        use4 = False
         if use4:
             nodes = 4
         else:
@@ -262,9 +304,15 @@ class uwb_agent:
         else:
             X = np.linalg.lstsq(A, B, rcond=None)[0]
         
+        self.time_taken_geo += time.time() - prev_t
+        self.time_instanes_geo += 1
+
         if self.KF_started:
+            prev_t = time.time()
             self.UAV_KF.update(z=X)
-            return self.UAV_KF.get_state()
+            self.time_taken_kf_upd += time.time() - prev_t
+            self.time_instanes_kf_upd += 1
+            return self.UAV_KF.get_state()[0:3]
         else:
             return X
 

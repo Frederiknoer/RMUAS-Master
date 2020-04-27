@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from scipy import linalg as la
 import matplotlib.pyplot as pl
 import numpy as np
@@ -153,7 +155,7 @@ class pycopter:
         frames = self.frames
 
         for t in self.time:
-            acc_err = np.random.normal(0, 0.002, 1)[0]
+            acc_err = np.random.normal(0, 0.001, 1)[0]
             #HANDLE RANGE MEASUREMENTS:
             if it % 50 == 0 or it == 0: # or method == 'NF':
                 print(t)
@@ -178,11 +180,11 @@ class pycopter:
             #HANDLE KALMAN FILTER:
             if method == 'KF':
                 if self.UAV.xyz[2] < -3 and not kalmanStarted:
-                    self.UAV_agent.startKF(self.UAV.xyz, self.UAV.acc + acc_err, dt)
+                    R, Q = self.UAV_agent.startKF(self.UAV.xyz, v_ned=self.UAV.v_ned, dt=dt)
                     kalmanStarted = True
                 
                 if kalmanStarted:
-                    self.UAV_agent.handle_acc_msg( self.UAV.acc + acc_err )
+                    self.UAV_agent.KFpredict( self.UAV.acc + acc_err )
                 
                 #CALC POS:
                 alg_pos = self.UAV_agent.calc_pos_alg()
@@ -192,7 +194,7 @@ class pycopter:
             #HANDLE PARTICLE FILTER
             if method == 'PF':
                 if self.UAV.xyz[2] < -3 and not PFstarted:
-                    self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
+                    n_of_particles, std_add =  self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
                     PFstarted = True
 
                 if PFstarted:
@@ -206,7 +208,7 @@ class pycopter:
             #HANDLE PARTICLE KALMAN FILTER
             if method == 'PKF':
                 if self.UAV.xyz[2] < -3 and not PKFstarted:
-                    self.UAV_agent.startPKF(self.UAV.acc + acc_err, dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
+                    R, Q, n_of_particles, std_add = self.UAV_agent.startPKF(self.UAV.acc + acc_err, dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
                     PKFstarted = True
                 if PKFstarted:
                     alg_pos = self.UAV_agent.get_PKFstate()
@@ -295,9 +297,27 @@ class pycopter:
                     #if PFstarted:
                     #    input(" ")
 
+        print(self.UAV_agent.get_time_vals(method))
+
+        if method == 'NF':
+            info1 = info2 = ''
+        elif method == 'KF':
+            info1 = 'R: ' + str(R)
+            info2 = 'Q: ' + str(Q)
+        elif method == 'PF':
+            info1 = 'Particles: ' + str(n_of_particles)
+            info2 = 'Sigma P: ' + str(std_add)
+        elif method == 'PKF':
+            info1 = 'R: ' + str(R)
+            info2 = 'Q: ' + str(Q)
+            info3 = 'Particles: ' + str(n_of_particles)
+            info4 = 'Sigma P: ' + str(std_add)
 
         pl.figure(1)
-        pl.title(method +" 2D Position [m]")
+        if method == 'PKF':
+            pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
+        else:
+            pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2)
         pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
         pl.plot(self.UAV_log.xyz_h[:, 0], self.UAV_log.xyz_h[:, 1], label="Ground Truth(x,y)", color=quadcolor[0])
         pl.xlabel("East")
@@ -305,23 +325,29 @@ class pycopter:
         pl.legend()
         pl.savefig('results/'+method+'_2D_pos.png')
 
-        
         pl.figure(2)
-        pl.title(method+" Error Distance [m]")
+        if method == 'PKF':
+            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
+        else:
+            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2)
         pl.plot(self.time, self.Ed_log[:, 0], label="Distance: est_pos - true_pos", color=quadcolor[2])
-        #pl.ylim(0,1)
+        pl.ylim(-0.1,1)
         pl.xlabel("Time [s]")
         pl.ylabel("Formation distance error [m]")
         pl.grid()
         pl.legend()
         pl.savefig('results/'+method+'_err_pos.png')
         
+        
 
         pl.figure(3)
-        pl.title(method+" Altitude Over Time [m]")
+        if method == 'PKF':
+            pl.title(method+" Altitude[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
+        else:
+            pl.title(method+" Altitude[m] - " + info1 + " - " + info2)
         pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
         pl.plot(self.time, self.UAV_log.xyz_h[:, 2], label="Ground Truth(alt)", color=quadcolor[0])
-        #pl.ylim(-5, 0.5)
+        pl.ylim(-4, 0.5)
         pl.xlabel("Time [s]")
         pl.ylabel("Altitude [m]")
         pl.grid()

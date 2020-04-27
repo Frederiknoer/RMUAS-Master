@@ -11,8 +11,16 @@ import sympy as symp
 
 
 class KF:
-    def __init__(self, xyz, v_ned, dt):
+    def __init__(self, xyz, v_ned, dt, option=0):
+        self.option = option
         self.dt = dt
+
+        if option == 0:
+            r = 1.5
+            cu = 0.000002
+        elif option == 1:
+            r = 0.015
+            cu = 0.000002
 
         dim_x = 6
         dim_u = 3
@@ -28,10 +36,12 @@ class KF:
         
         
         self.R = np.eye(dim_z) # state uncertainty
-        self.R *= 2.0 #7
+        self.R *= r #7
 
         self.cov_u = np.eye(dim_u) # process uncertainty
-        self.cov_u *= 0.0002 #0.0001 cov(u, u)
+        self.cov_u *= cu #0.0001 cov(u, u)
+        #self.cov_u = Q_discrete_white_noise(dim=dim_u, dt=dt, var=0.12)
+        #print(self.cov_u)
 
         self.P = np.eye(dim_x) # uncertainty covariance
         self.P *= 1000 # 500
@@ -61,6 +71,9 @@ class KF:
         self.I = np.eye(dim_x)
         
         print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
+
+    def get_return_vals(self):
+        return self.R[0][0], self.cov_u[0][0]
 
 
     def predict(self, u):
