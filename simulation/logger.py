@@ -26,7 +26,7 @@ class logger:
 
         self.run_animation = False
         print(sys.argv[1])
-        self.pos_method = sys.argv[1] #NF = No filter, KF = kalman filter, PF = particle filter, PKF = particle kalman filter
+        self.pos_method = sys.argv[1] #NF4 = No Filter(4 closest), NF = No filter(svd), KF, KF4 = kalman filter, PF = particle filter, PKF = particle kalman filter
 
         self.pycopter = pycopter_class.pycopter(tf, dt)
 

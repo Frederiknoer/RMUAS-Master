@@ -62,7 +62,7 @@ class uwb_agent:
         elif method == 'KF':
             return [((self.time_taken_kf_predict) / (self.time_instanes_kf_predict)) ,  ((self.time_taken_kf_upd) / (self.time_instanes_kf_upd))]
         elif method == 'PF':
-            return [((self.time_taken_pf_predict) / (self.time_instanes_pf_predict)) ,  ((self.time_taken_pf_upd) / (self.time_instanes_pf_upd))]
+            return [((self.time_taken_pf_predict) / (self.time_instanes_pf_predict)) ,  ((self.time_taken_pf_upd) / (self.time_instanes_pf_upd)) , ((self.time_taken_pf_resamp) / (self.time_instanes_pf_resamp))]
         elif method == 'PKF':
             pass
 
@@ -263,9 +263,9 @@ class uwb_agent:
 
 
     # ***************** POSITION ESTIMATION FUNCTIONS *****************
-    def calc_pos_alg(self):
+    def calc_pos_alg(self, use4):
         prev_t = time.time()
-        use4 = False
+        #use4 = False
         if use4:
             nodes = 4
         else:

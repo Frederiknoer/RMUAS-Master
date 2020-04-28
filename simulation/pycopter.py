@@ -137,10 +137,14 @@ class pycopter:
 
 
     def run(self, method, run_animation=False):
-        if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF'):
+        if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF' or method == 'NF4' or method == 'KF4'):
             print ("Wrong Input, your in put was: ", method)
             return -1
-        
+        use4 = False
+        if method == 'NF4' or method == 'KF4':
+            use4 = True
+            method = method[0:2]
+
         dt = self.dt
         it = self.it
         kalmanStarted = False
@@ -173,7 +177,7 @@ class pycopter:
 
             #HANDLE POS NO FILTER:
             if method == 'NF':
-                alg_pos = self.UAV_agent.calc_pos_alg()
+                alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
                 alg_vel = self.UAV.v_ned
 
             
@@ -187,7 +191,7 @@ class pycopter:
                     self.UAV_agent.KFpredict( self.UAV.acc + acc_err )
                 
                 #CALC POS:
-                alg_pos = self.UAV_agent.calc_pos_alg()
+                alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
                 alg_vel = self.UAV.v_ned
             
             
@@ -298,7 +302,7 @@ class pycopter:
                     #    input(" ")
 
         print(self.UAV_agent.get_time_vals(method))
-
+        
         if method == 'NF':
             info1 = info2 = ''
         elif method == 'KF':
@@ -312,6 +316,9 @@ class pycopter:
             info2 = 'Q: ' + str(Q)
             info3 = 'Particles: ' + str(n_of_particles)
             info4 = 'Sigma P: ' + str(std_add)
+
+        if use4:
+            method += '4'
 
         pl.figure(1)
         if method == 'PKF':
