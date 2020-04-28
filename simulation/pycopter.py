@@ -121,6 +121,8 @@ class pycopter:
 
         self.UAV_agent = range_agent.uwb_agent( ID=10, d=d)
 
+        self.R = self.Q = self.n_of_particles = self.std_add = 0.0
+
     def get_dist_clean(self, p1, p2):
         return (np.linalg.norm(p1 - p2))
 
@@ -184,7 +186,7 @@ class pycopter:
             #HANDLE KALMAN FILTER:
             if method == 'KF':
                 if self.UAV.xyz[2] < -3 and not kalmanStarted:
-                    R, Q = self.UAV_agent.startKF(self.UAV.xyz, v_ned=self.UAV.v_ned, dt=dt)
+                    self.R, self.Q = self.UAV_agent.startKF(self.UAV.xyz, v_ned=self.UAV.v_ned, dt=dt)
                     kalmanStarted = True
                 
                 if kalmanStarted:
@@ -198,7 +200,7 @@ class pycopter:
             #HANDLE PARTICLE FILTER
             if method == 'PF':
                 if self.UAV.xyz[2] < -3 and not PFstarted:
-                    n_of_particles, std_add =  self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
+                    self.n_of_particles, self.std_add =  self.UAV_agent.startPF(start_vel=self.UAV.v_ned, dt=dt)
                     PFstarted = True
 
                 if PFstarted:
@@ -212,7 +214,7 @@ class pycopter:
             #HANDLE PARTICLE KALMAN FILTER
             if method == 'PKF':
                 if self.UAV.xyz[2] < -3 and not PKFstarted:
-                    R, Q, n_of_particles, std_add = self.UAV_agent.startPKF(self.UAV.acc + acc_err, dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
+                    self.R, self.Q, self.n_of_particles, self.std_add = self.UAV_agent.startPKF(self.UAV.acc + acc_err, dt=dt, xyz=self.UAV.xyz, v_ned=self.UAV.v_ned)
                     PKFstarted = True
                 if PKFstarted:
                     alg_pos = self.UAV_agent.get_PKFstate()
@@ -302,7 +304,7 @@ class pycopter:
                     #    input(" ")
 
         print(self.UAV_agent.get_time_vals(method))
-        
+        '''
         if method == 'NF':
             info1 = info2 = ''
         elif method == 'KF':
@@ -362,5 +364,8 @@ class pycopter:
         pl.savefig('results/'+method+'_alt.png')
 
         #pl.pause(0)
-
-        return self.Ed_log, self.alg_log, self.UAV_log
+        '''
+        alg_log = np.array([self.alg_log.xyz_h[:,0], self.alg_log.xyz_h[:,1], self.alg_log.xyz_h[:,2]])
+        uav_log = np.array([self.UAV_log.xyz_h[:,0], self.UAV_log.xyz_h[:,1], self.UAV_log.xyz_h[:,2]])
+        print(self.Ed_log)
+        return [uav_log, alg_log, self.Ed_log]
