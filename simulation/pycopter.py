@@ -139,11 +139,12 @@ class pycopter:
 
 
     def run(self, method, run_animation=False):
-        if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF' or method == 'NF4' or method == 'KF4'):
+        if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF' or \
+                method == 'NF4' or method == 'KF4' or method == 'PF4' or method == 'PKF4'):
             print ("Wrong Input, your in put was: ", method)
             return -1
         use4 = False
-        if method == 'NF4' or method == 'KF4':
+        if len(method) > 2:
             use4 = True
             method = method[0:2]
 
@@ -164,7 +165,7 @@ class pycopter:
             acc_err = np.random.normal(0, 0.001, 1)[0]
             #HANDLE RANGE MEASUREMENTS:
             if it % 50 == 0 or it == 0: # or method == 'NF':
-                print(t)
+                #print(t)
                 self.UAV_agent.handle_range_msg(self.RA0.id, self.get_dist(self.UAV.xyz, self.uwb0.xyz))
                 self.UAV_agent.handle_range_msg(self.RA1.id, self.get_dist(self.UAV.xyz, self.uwb1.xyz))
                 self.UAV_agent.handle_range_msg(self.RA2.id, self.get_dist(self.UAV.xyz, self.uwb2.xyz))
@@ -173,14 +174,16 @@ class pycopter:
                 self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
                 self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
                 if PFstarted and method == 'PF':
-                    self.UAV_agent.PFupdate()
+                    self.UAV_agent.PFupdate(use4=use4)
                 if PKFstarted and method == 'PKF':
-                    self.UAV_agent.updatePKF()
+                    self.UAV_agent.updatePKF(use4=use4)
+                if kalmanStarted and method == 'KF':
+                    alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
+
 
             #HANDLE POS NO FILTER:
             if method == 'NF':
                 alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
-                alg_vel = self.UAV.v_ned
 
             
             #HANDLE KALMAN FILTER:
@@ -191,12 +194,11 @@ class pycopter:
                 
                 if kalmanStarted:
                     self.UAV_agent.KFpredict( self.UAV.acc + acc_err )
+                    alg_pos = self.UAV_agent.get_kf_state()
+                else:
+                    alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
                 
-                #CALC POS:
-                alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
-                alg_vel = self.UAV.v_ned
-            
-            
+
             #HANDLE PARTICLE FILTER
             if method == 'PF':
                 if self.UAV.xyz[2] < -3 and not PFstarted:
@@ -209,7 +211,6 @@ class pycopter:
                     self.UAV_agent.PFpredict(self.UAV.acc + acc_err)
                 else:
                     alg_pos = self.UAV.xyz
-                    alg_vel = self.UAV.v_ned
 
             #HANDLE PARTICLE KALMAN FILTER
             if method == 'PKF':
@@ -256,10 +257,10 @@ class pycopter:
                 self.Ed_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.xyz) ])
                 self.Ed_vel_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.v_ned) ])
                 self.alg_log.xyz_h[it, :] = alg_pos
-                self.UAV_log.xyz_h[it, :] = self.UAV.xyz
-                self.UAV_log.att_h[it, :] = self.UAV.att
-                self.UAV_log.w_h[it, :] = self.UAV.w
-                self.UAV_log.v_ned_h[it, :] = self.UAV.v_ned
+            self.UAV_log.xyz_h[it, :] = self.UAV.xyz
+            self.UAV_log.att_h[it, :] = self.UAV.att
+            self.UAV_log.w_h[it, :] = self.UAV.w
+            self.UAV_log.v_ned_h[it, :] = self.UAV.v_ned
             
 
             it+=1
@@ -274,21 +275,15 @@ class pycopter:
                     axis3d.cla()
                     ani.draw3d(axis3d, self.uwb0.xyz, self.uwb0.Rot_bn(), quadcolor[0])
 
-                    ani.draw3d(axis3d, self.uwb1.xyz, self.uwb1.Rot_bn(), quadcolor[0])
-                    ani.draw3d(axis3d, self.uwb2.xyz, self.uwb2.Rot_bn(), quadcolor[0])
-                    ani.draw3d(axis3d, self.uwb3.xyz, self.uwb3.Rot_bn(), quadcolor[0])
+                    ani.draw3d(axis3d, self.uwb1.xyz, self.uwb1.Rot_bn(), quadcolor[2])
+                    ani.draw3d(axis3d, self.uwb2.xyz, self.uwb2.Rot_bn(), quadcolor[2])
+                    ani.draw3d(axis3d, self.uwb3.xyz, self.uwb3.Rot_bn(), quadcolor[2])
 
-                    ani.draw3d(axis3d, self.uwb4.xyz, self.uwb4.Rot_bn(), quadcolor[0])
-                    ani.draw3d(axis3d, self.uwb5.xyz, self.uwb5.Rot_bn(), quadcolor[0])
-                    ani.draw3d(axis3d, self.uwb6.xyz, self.uwb6.Rot_bn(), quadcolor[0])
+                    ani.draw3d(axis3d, self.uwb4.xyz, self.uwb4.Rot_bn(), quadcolor[2])
+                    ani.draw3d(axis3d, self.uwb5.xyz, self.uwb5.Rot_bn(), quadcolor[2])
+                    ani.draw3d(axis3d, self.uwb6.xyz, self.uwb6.Rot_bn(), quadcolor[2])
 
                     ani.draw3d(axis3d, self.UAV.xyz, self.UAV.Rot_bn(), quadcolor[1])
-                    '''
-                    if PFstarted:
-                        particles = self.UAV_agent.get_particles()
-                        for particle in particles:
-                            ani.draw3d(axis3d, particle, self.UAV.Rot_bn(), quadcolor[2])
-                    '''
 
                     axis3d.set_xlim(-6, 6)
                     axis3d.set_ylim(-6, 6)
@@ -300,72 +295,7 @@ class pycopter:
                     pl.pause(0.001)
                     pl.draw()
 
-                    #if PFstarted:
-                    #    input(" ")
-
-        print(self.UAV_agent.get_time_vals(method))
-        '''
-        if method == 'NF':
-            info1 = info2 = ''
-        elif method == 'KF':
-            info1 = 'R: ' + str(R)
-            info2 = 'Q: ' + str(Q)
-        elif method == 'PF':
-            info1 = 'Particles: ' + str(n_of_particles)
-            info2 = 'Sigma P: ' + str(std_add)
-        elif method == 'PKF':
-            info1 = 'R: ' + str(R)
-            info2 = 'Q: ' + str(Q)
-            info3 = 'Particles: ' + str(n_of_particles)
-            info4 = 'Sigma P: ' + str(std_add)
-
-        if use4:
-            method += '4'
-
-        pl.figure(1)
-        if method == 'PKF':
-            pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
-        else:
-            pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2)
-        pl.plot(self.alg_log.xyz_h[:, 0],self.alg_log.xyz_h[:, 1], label="est_pos(x,y)", color=quadcolor[2])
-        pl.plot(self.UAV_log.xyz_h[:, 0], self.UAV_log.xyz_h[:, 1], label="Ground Truth(x,y)", color=quadcolor[0])
-        pl.xlabel("East")
-        pl.ylabel("South")
-        pl.legend()
-        pl.savefig('results/'+method+'_2D_pos.png')
-
-        pl.figure(2)
-        if method == 'PKF':
-            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
-        else:
-            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2)
-        pl.plot(self.time, self.Ed_log[:, 0], label="Distance: est_pos - true_pos", color=quadcolor[2])
-        pl.ylim(-0.1,1)
-        pl.xlabel("Time [s]")
-        pl.ylabel("Formation distance error [m]")
-        pl.grid()
-        pl.legend()
-        pl.savefig('results/'+method+'_err_pos.png')
-        
-        
-
-        pl.figure(3)
-        if method == 'PKF':
-            pl.title(method+" Altitude[m] - " + info1 + " - " + info2 + "\n" + info3 + " - " + info4)
-        else:
-            pl.title(method+" Altitude[m] - " + info1 + " - " + info2)
-        pl.plot(self.time, self.alg_log.xyz_h[:, 2], label="est_alt", color=quadcolor[2])
-        pl.plot(self.time, self.UAV_log.xyz_h[:, 2], label="Ground Truth(alt)", color=quadcolor[0])
-        pl.ylim(-4, 0.5)
-        pl.xlabel("Time [s]")
-        pl.ylabel("Altitude [m]")
-        pl.grid()
-        pl.legend(loc=2)
-        pl.savefig('results/'+method+'_alt.png')
-
-        #pl.pause(0)
-        '''
         alg_log = np.array([self.alg_log.xyz_h[:,0], self.alg_log.xyz_h[:,1], self.alg_log.xyz_h[:,2]])
         uav_log = np.array([self.UAV_log.xyz_h[:,0], self.UAV_log.xyz_h[:,1], self.UAV_log.xyz_h[:,2]])
-        print(self.Ed_log)
+        #print(self.Ed_log)
         return [uav_log, alg_log, self.Ed_log]

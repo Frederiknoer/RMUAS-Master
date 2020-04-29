@@ -16,8 +16,8 @@ class KF:
         self.dt = dt
 
         if option == 0:
-            r = 1.5
-            cu = 0.000002
+            r = 1.4
+            cu = 0.00002
         elif option == 1:
             r = 0.015
             cu = 0.000002
@@ -70,7 +70,7 @@ class KF:
 
         self.I = np.eye(dim_x)
         
-        print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
+        #print("Kalman filter initialized, x_dim: ",self.x.shape, "  f_dim: ", self.F.shape, "  h_dim: ", self.H.shape, "  b_dim: ", self.G.shape)
 
     def get_return_vals(self):
         return self.R[0][0], self.cov_u[0][0]

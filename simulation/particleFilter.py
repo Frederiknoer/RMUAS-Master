@@ -23,7 +23,7 @@ class particleFilter:
             self.upd_std_dev = 2.2 #2.2
         else: #PKF:
             self.N = 7500 #10000
-            self.upd_std_dev = 2.5 #2.2
+            self.upd_std_dev = 3.5 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -37,7 +37,7 @@ class particleFilter:
         self.particles[:,1] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,2] = np.random.uniform(-3.5, 0.5, size=self.N)
 
-        print("Particle Filter initiated with ", self.N, " Particles")
+        #print("Particle Filter initiated with ", self.N, " Particles")
 
     def get_return_vals(self):
         return self.N, self.upd_std_dev
@@ -61,7 +61,9 @@ class particleFilter:
             self.vel_y = v[1]
             self.vel_z = v[2]
 
-    def update(self, z):
+    def update(self, z, anchs=0):
+        if anchs != 0:
+            self.anchors = anchs
         p = self.particles
         for i, anchor in enumerate(self.anchors):
             est_dist = (((p[:,0] - anchor[0])**2 + (p[:,1]-anchor[1])**2 + (p[:,2]-anchor[2])**2)**0.5)
