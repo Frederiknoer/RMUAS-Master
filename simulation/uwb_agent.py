@@ -56,13 +56,13 @@ class uwb_agent:
 
     # ***************** RETURN TIME VALUES ************************
     def get_time_vals(self, method):
-        if method == 'NF':
+        if method == 'NF' or method == 'NF4':
             return ((self.time_taken_geo) / (self.time_instanes_geo))
-        elif method == 'KF':
+        elif method == 'KF' or method == 'KF4':
             return [((self.time_taken_kf_predict) / (self.time_instanes_kf_predict)) ,  ((self.time_taken_kf_upd) / (self.time_instanes_kf_upd))]
-        elif method == 'PF':
+        elif method == 'PF' or method == 'PF4':
             return [((self.time_taken_pf_predict) / (self.time_instanes_pf_predict)) ,  ((self.time_taken_pf_upd) / (self.time_instanes_pf_upd)) , ((self.time_taken_pf_resamp) / (self.time_instanes_pf_resamp))]
-        elif method == 'PKF':
+        elif method == 'PKF' or method == 'PKF4':
             pass
 
     # ***************** PARTICLE FILTER FUNCTIONS *****************

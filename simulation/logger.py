@@ -39,7 +39,14 @@ class logger:
         self.big_log_est = np.empty([3, self.n, 0], dtype=np.float32)
         self.big_log_gt  = np.empty([3, self.n, 0], dtype=np.float32)
 
-        self.big_log_time = np.empty([1,0])
+        if method == 'NF' or method == 'NF4':
+            self.big_log_time = np.empty([1, self.N, 0])
+        elif method == 'KF' or method == 'KF4':
+            self.big_log_time = np.empty([2, self.N, 0])
+        elif method == 'PF' or method == 'PF4':
+            self.big_log_time = np.empty([3, self.N, 0])
+        elif method == 'PKF' or method == 'PKF4':
+            pass
 
         #self.pycopter = pycopter_class.pycopter(self.tf, self.dt)
 
@@ -54,7 +61,7 @@ class logger:
             self.big_log_est = np.insert(arr=self.big_log_est, obj=i, values=alg, axis=2)
             self.big_log_gt = np.insert(arr=self.big_log_gt, obj=i, values=UAV, axis=2)
 
-            self.big_log_time = np.insert(arr=self.big_log_time, values=(self.pycopter.UAV_agent.get_time_vals(self.pos_method)), obj=i, axis=1)
+            self.big_log_time = np.insert( arr=self.big_log_time, obj=i, values=self.pycopter.UAV_agent.get_time_vals(self.pos_method), axis=2 )
 
             self.n_of_particles, self.std_add, self.Q, self.R =  self.pycopter.n_of_particles, self.pycopter.std_add, self.pycopter.Q, self.pycopter.R
             del self.pycopter
@@ -71,10 +78,10 @@ class logger:
         self.gt_mean  = np.mean(self.big_log_gt, axis=2)
         self.gt_var   = np.var(self.big_log_gt, axis=2)
 
-        self.time_mean = np.mean(self.big_log_time, axis=1)
-        self.time_var = np.var(self.big_log_time, axis=1)
-        print("Mean of Operation Time: ", self.time_mean)
-        print("Var of Operation Time: ", self.time_var)
+        self.time_mean = np.mean(self.big_log_time, axis=2)
+        self.time_var = np.var(self.big_log_time, axis=2)
+        print("Mean of Operation Time: ", self.time_mean[0])
+        print("Var of Operation Time: ", self.time_var[0])
 
     '''
     def parse_data(self):
@@ -174,13 +181,13 @@ class logger:
 
 if __name__ == "__main__":
     c_in = sys.argv[1]
-    if c_in == 0:
+    if c_in == 'NF':
         method_list = ['NF4', 'NF']
-    elif c_in == 1:
+    elif c_in == 'KF':
         method_list = ['KF4', 'KF']
-    elif c_in == 2:
+    elif c_in == 'PF':
         method_list = ['PF4', 'PF']
-    elif c_in == 3:
+    elif c_in == 'PKF':
         method_list = ['PKF4', 'PKF']
 
     #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF', 'PKF4', 'PKF']
