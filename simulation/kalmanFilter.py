@@ -16,11 +16,11 @@ class KF:
         self.dt = dt
 
         if option == 0:
-            r = 1.2 #1.4
-            cu = 0.0002 #0.00002
+            r = 1.4 #1.4
+            cu = 0.00025 #0.00002
         elif option == 1:
-            r = 0.15
-            cu = 0.000002
+            r = 0.25
+            cu = 0.00002
 
         dim_x = 6
         dim_u = 3

@@ -19,11 +19,11 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 12500 #10000
-            self.upd_std_dev = 2.5 #2.2
+            self.N = 10000 #7500
+            self.upd_std_dev = 2.2 #2.2
         else: #PKF:
-            self.N = 7500 #10000
-            self.upd_std_dev = 5.5 #2.2
+            self.N = 5000 #10000
+            self.upd_std_dev = 3.0 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -32,34 +32,21 @@ class particleFilter:
         self.vel_x, self.vel_y, self.vel_z = start_vel
 
         self.weights = np.full((self.N, 1), 1.0)
-        self.particles = np.zeros((self.N,3))
+        self.particles = np.zeros((self.N,6))
         self.particles[:,0] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,1] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,2] = np.random.uniform(-3.5, 0.5, size=self.N)
-
+        self.particles[:, 3:] = start_vel
         #print("Particle Filter initiated with ", self.N, " Particles")
 
     def get_return_vals(self):
         return self.N, self.upd_std_dev
 
     def predict(self, u, v=None):
-        if self.option == 0:
-            mu, sigma = 0, 0.0002 #0.0002
-            noise = np.random.normal(mu, sigma, 1)[0]
-        else:
-            mu, sigma = 0, 0.0002 #0.0002
-            noise = np.random.normal(mu, sigma, 1)[0]
-        self.particles[:, 0] += self.vel_x*self.dt + u[0]*((self.dt**2)/2) + noise
-        self.particles[:, 1] += self.vel_y*self.dt + u[1]*((self.dt**2)/2) + noise
-        self.particles[:, 2] += self.vel_z*self.dt + u[2]*((self.dt**2)/2) + noise
-        if v == None:
-            self.vel_x += u[0]*self.dt
-            self.vel_y += u[1]*self.dt
-            self.vel_z += u[2]*self.dt
-        else:
-            self.vel_x = v[0]
-            self.vel_y = v[1]
-            self.vel_z = v[2]
+        mu, sigma_pos, sigma_vel = 0, 0.000002, 0.0000000002
+        self.particles[:, :3] += self.particles[:, 3:]*self.dt + u[0]*((self.dt**2)/2) + np.random.normal(mu, sigma_pos, (self.N, 3))
+        self.particles[:, 3:] += u * self.dt + np.random.normal(mu, sigma_vel, (self.N, 3))
+
 
     def update(self, z, anchs=0):
         if anchs != 0:
@@ -74,7 +61,7 @@ class particleFilter:
         self.weights = np.true_divide(self.weights, np.sum(self.weights))
 
     def resample(self):
-        indexes = resampling.systematic_resample(self.weights)
+        indexes = resampling.multinomial_resample(self.weights)
         self.particles[:] = self.particles[indexes]
         self.weights[:] = self.weights[indexes]
         self.weights = np.true_divide(self.weights, np.sum(self.weights))
@@ -83,7 +70,9 @@ class particleFilter:
         #return np.mean(self.particles, axis=0)
         #max_idx = np.argmax(self.weights)
         idx = np.argsort(self.weights)[250:]
-        return np.mean(self.particles[idx], axis=0) #DOUBLE CHECK THIS MEAN FUNCTION
+        pos = np.mean(self.particles[idx], axis=0) #DOUBLE CHECK THIS MEAN FUNCTION
+        #print(pos[0, :3])
+        return pos[0, :3]
         #return self.particles[max_idx]
 
     def get_particles(self):

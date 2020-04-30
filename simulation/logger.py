@@ -17,7 +17,7 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-n_of_sims = 25
+n_of_sims = 20
 
 
 class logger:
@@ -40,11 +40,11 @@ class logger:
         self.big_log_gt  = np.empty([3, self.n, 0], dtype=np.float32)
 
         if method == 'NF' or method == 'NF4':
-            self.big_log_time = np.empty([1, self.N, 0])
+            self.big_log_time = np.empty([1, 1, 0])
         elif method == 'KF' or method == 'KF4':
-            self.big_log_time = np.empty([2, self.N, 0])
+            self.big_log_time = np.empty([1, 2, 0])
         elif method == 'PF' or method == 'PF4':
-            self.big_log_time = np.empty([3, self.N, 0])
+            self.big_log_time = np.empty([1, 3, 0])
         elif method == 'PKF' or method == 'PKF4':
             pass
 
@@ -61,7 +61,10 @@ class logger:
             self.big_log_est = np.insert(arr=self.big_log_est, obj=i, values=alg, axis=2)
             self.big_log_gt = np.insert(arr=self.big_log_gt, obj=i, values=UAV, axis=2)
 
-            self.big_log_time = np.insert( arr=self.big_log_time, obj=i, values=self.pycopter.UAV_agent.get_time_vals(self.pos_method), axis=2 )
+            if self.pos_method == 'PKF' or self.pos_method == 'PKF4':
+                pass
+            else:
+                self.big_log_time = np.insert( arr=self.big_log_time, obj=i, values=self.pycopter.UAV_agent.get_time_vals(self.pos_method), axis=2 )
 
             self.n_of_particles, self.std_add, self.Q, self.R =  self.pycopter.n_of_particles, self.pycopter.std_add, self.pycopter.Q, self.pycopter.R
             del self.pycopter
@@ -78,10 +81,13 @@ class logger:
         self.gt_mean  = np.mean(self.big_log_gt, axis=2)
         self.gt_var   = np.var(self.big_log_gt, axis=2)
 
-        self.time_mean = np.mean(self.big_log_time, axis=2)
-        self.time_var = np.var(self.big_log_time, axis=2)
-        print("Mean of Operation Time: ", self.time_mean[0])
-        print("Var of Operation Time: ", self.time_var[0])
+        if self.pos_method == 'PKF' or self.pos_method == 'PKF4':
+                pass
+        else:
+            self.time_mean = np.mean(self.big_log_time, axis=2)
+            self.time_var = np.var(self.big_log_time, axis=2)
+            print("Mean of Operation Time: ", self.time_mean[0])
+            print("Var of Operation Time: ", self.time_var[0])
 
     '''
     def parse_data(self):
@@ -180,17 +186,19 @@ class logger:
 
 
 if __name__ == "__main__":
+    '''
     c_in = sys.argv[1]
     if c_in == 'NF':
         method_list = ['NF4', 'NF']
     elif c_in == 'KF':
         method_list = ['KF4', 'KF']
     elif c_in == 'PF':
-        method_list = ['PF4', 'PF']
+        method_list = ['PF']#, 'PF']
     elif c_in == 'PKF':
-        method_list = ['PKF4', 'PKF']
-
-    #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF', 'PKF4', 'PKF']
+        method_list = ['PKF']#, 'PKF']
+    '''
+    #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF']#, 'PKF4', 'PKF']
+    method_list = ['PF', 'PF4', 'KF', 'KF4']
     for method in method_list:
         l = logger(method)
         l.run_logger()
