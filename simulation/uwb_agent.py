@@ -10,7 +10,6 @@ import serial
 import localization as lx
 import particleFilter as PF
 import kalmanFilter as KF
-import particleKalmanFilter as PKF
 import time
 
 '''
@@ -86,7 +85,8 @@ class uwb_agent:
             a,b,c,d,e,f,g = self.anchors
             n = [a,b,c,d,e,f,g]
             n,z = self.get_4_closest_nodes(n, z)
-        self.PF.update(z, n)
+
+        self.PF.update(z=z, anchs=n)
         self.time_taken_pf_upd += time.time() - prev_t
         self.time_instanes_pf_upd += 1
 
@@ -135,6 +135,7 @@ class uwb_agent:
         self.UAV_KF.update(z=pf_pos)
 
     def get_PKFstate(self):
+        #print(self.UAV_KF.get_state()[0:3])
         return self.UAV_KF.get_state()[0:3]
 
 

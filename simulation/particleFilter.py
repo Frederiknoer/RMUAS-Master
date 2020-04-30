@@ -19,11 +19,11 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 10000 #10000
-            self.upd_std_dev = 2.2 #2.2
+            self.N = 12500 #10000
+            self.upd_std_dev = 2.5 #2.2
         else: #PKF:
             self.N = 7500 #10000
-            self.upd_std_dev = 3.5 #2.2
+            self.upd_std_dev = 5.5 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -44,10 +44,10 @@ class particleFilter:
 
     def predict(self, u, v=None):
         if self.option == 0:
-            mu, sigma = 0, 0.0005 #0.0002
+            mu, sigma = 0, 0.0002 #0.0002
             noise = np.random.normal(mu, sigma, 1)[0]
         else:
-            mu, sigma = 0, 0.0005 #0.0002
+            mu, sigma = 0, 0.0002 #0.0002
             noise = np.random.normal(mu, sigma, 1)[0]
         self.particles[:, 0] += self.vel_x*self.dt + u[0]*((self.dt**2)/2) + noise
         self.particles[:, 1] += self.vel_y*self.dt + u[1]*((self.dt**2)/2) + noise
@@ -83,7 +83,7 @@ class particleFilter:
         #return np.mean(self.particles, axis=0)
         #max_idx = np.argmax(self.weights)
         idx = np.argsort(self.weights)[250:]
-        return np.mean(self.particles, axis=0)
+        return np.mean(self.particles[idx], axis=0) #DOUBLE CHECK THIS MEAN FUNCTION
         #return self.particles[max_idx]
 
     def get_particles(self):

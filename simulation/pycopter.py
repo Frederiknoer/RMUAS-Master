@@ -145,8 +145,13 @@ class pycopter:
             return -1
         use4 = False
         if len(method) > 2:
-            use4 = True
-            method = method[0:2]
+            if method == 'PKF4' or method == 'PKF':
+                if method == 'PKF4':
+                    method = method[0:3]
+                    use4 = True
+            else:
+                use4 = True
+                method = method[0:2]
 
         dt = self.dt
         it = self.it
@@ -222,10 +227,9 @@ class pycopter:
                     self.UAV_agent.predictPKF(self.UAV.acc + acc_err)
                 else:
                     alg_pos = self.UAV.xyz
-                    alg_vel = self.UAV.v_ned
 
-            #print(alg_pos)
-
+            #print("Estimated pos:",alg_pos)
+            #print("True pos:     ",self.UAV.xyz)
 
             #HANDLE UAV MOVEMENT:
             x_err = abs(self.wp[self.state][0] - self.UAV.xyz[0])
