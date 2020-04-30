@@ -16,8 +16,8 @@ class KF:
         self.dt = dt
 
         if option == 0:
-            r = 1.4 #1.4
-            cu = 0.00025 #0.00002
+            r = 2.5 #1.4
+            cu = 0.0001 #0.00002
         elif option == 1:
             r = 0.25
             cu = 0.00002

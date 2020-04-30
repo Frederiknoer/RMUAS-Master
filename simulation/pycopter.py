@@ -167,7 +167,7 @@ class pycopter:
         frames = self.frames
 
         for t in self.time:
-            acc_err = np.random.normal(0, 0.001, 1)[0]
+            acc_err = np.random.normal(0, 0.002, 1)[0]
             #HANDLE RANGE MEASUREMENTS:
             if it % 50 == 0 or it == 0: # or method == 'NF':
                 #print(t)

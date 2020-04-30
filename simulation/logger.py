@@ -17,14 +17,14 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-n_of_sims = 20
+n_of_sims = 35
 
 
 class logger:
     def __init__(self, method):
         print("************************* METHOD: ", method, " **************************")
         self.N = n_of_sims
-        self.tf = 350
+        self.tf = 500
         self.dt = 1/100
         self.time = np.linspace(0, self.tf, int(self.tf/self.dt))
 
@@ -136,8 +136,8 @@ class logger:
         else:
             pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2)
         pl.plot(self.est_mean[0,:], self.est_mean[1,:], label="est_pos(x,y)", color=quadcolor[2])
-        #pl.fill_betweenx( self.est_mean[1,:], fillerx1, fillerx2, alpha=0.6, color=quadcolor[2])
-        #pl.fill_between( self.est_mean[0,:], fillery1, fillery2, alpha=0.6, color=quadcolor[2])
+        pl.fill_betweenx( self.est_mean[1,:], fillerx1, fillerx2, alpha=0.6, color=quadcolor[2])
+        pl.fill_between( self.est_mean[0,:], fillery1, fillery2, alpha=0.6, color=quadcolor[2])
 
         pl.plot(self.gt_mean[0,:], self.gt_mean[1, :], label="Ground Truth(x,y)", color=quadcolor[0])
         pl.xlabel("East")
@@ -145,8 +145,8 @@ class logger:
         pl.legend()
         pl.savefig('results/'+method+'_2D_pos.png')
         
-        filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
-        filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
+        #filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
+        #filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
 
         pl.figure(2)
         if method == 'PKF':
@@ -186,19 +186,19 @@ class logger:
 
 
 if __name__ == "__main__":
-    '''
+    
     c_in = sys.argv[1]
     if c_in == 'NF':
         method_list = ['NF4', 'NF']
     elif c_in == 'KF':
         method_list = ['KF4', 'KF']
     elif c_in == 'PF':
-        method_list = ['PF']#, 'PF']
+        method_list = ['PF4', 'PF']
     elif c_in == 'PKF':
-        method_list = ['PKF']#, 'PKF']
-    '''
+        method_list = ['PKF4', 'PKF']
+    
     #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF']#, 'PKF4', 'PKF']
-    method_list = ['PF', 'PF4', 'KF', 'KF4']
+    #method_list = ['PKF'] #, 'PF4', 'KF', 'KF4']
     for method in method_list:
         l = logger(method)
         l.run_logger()

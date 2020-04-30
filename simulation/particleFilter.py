@@ -19,11 +19,11 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 10000 #7500
-            self.upd_std_dev = 2.2 #2.2
+            self.N = 2500 #7500
+            self.upd_std_dev = 0.05 #2.2
         else: #PKF:
-            self.N = 5000 #10000
-            self.upd_std_dev = 3.0 #2.2
+            self.N = 2500 #10000
+            self.upd_std_dev = 0.05 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -43,7 +43,7 @@ class particleFilter:
         return self.N, self.upd_std_dev
 
     def predict(self, u, v=None):
-        mu, sigma_pos, sigma_vel = 0, 0.000002, 0.0000000002
+        mu, sigma_pos, sigma_vel = 0, 0.0025, 0.00002
         self.particles[:, :3] += self.particles[:, 3:]*self.dt + u[0]*((self.dt**2)/2) + np.random.normal(mu, sigma_pos, (self.N, 3))
         self.particles[:, 3:] += u * self.dt + np.random.normal(mu, sigma_vel, (self.N, 3))
 
@@ -61,7 +61,7 @@ class particleFilter:
         self.weights = np.true_divide(self.weights, np.sum(self.weights))
 
     def resample(self):
-        indexes = resampling.multinomial_resample(self.weights)
+        indexes = resampling.systematic_resample(self.weights)
         self.particles[:] = self.particles[indexes]
         self.weights[:] = self.weights[indexes]
         self.weights = np.true_divide(self.weights, np.sum(self.weights))
@@ -69,7 +69,7 @@ class particleFilter:
     def estimate(self):
         #return np.mean(self.particles, axis=0)
         #max_idx = np.argmax(self.weights)
-        idx = np.argsort(self.weights)[250:]
+        idx = np.argsort(self.weights)[150:]
         pos = np.mean(self.particles[idx], axis=0) #DOUBLE CHECK THIS MEAN FUNCTION
         #print(pos[0, :3])
         return pos[0, :3]
