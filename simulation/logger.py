@@ -136,8 +136,8 @@ class logger:
         else:
             pl.title(method +" 2D Pos[m] - " + info1 + " - " + info2)
         pl.plot(self.est_mean[0,:], self.est_mean[1,:], label="est_pos(x,y)", color=quadcolor[2])
-        pl.fill_betweenx( self.est_mean[1,:], fillerx1, fillerx2, alpha=0.6, color=quadcolor[2])
-        pl.fill_between( self.est_mean[0,:], fillery1, fillery2, alpha=0.6, color=quadcolor[2])
+        #pl.fill_betweenx( self.est_mean[1,:], fillerx1, fillerx2, alpha=0.6, color=quadcolor[2])
+        #pl.fill_between( self.est_mean[0,:], fillery1, fillery2, alpha=0.6, color=quadcolor[2])
 
         pl.plot(self.gt_mean[0,:], self.gt_mean[1, :], label="Ground Truth(x,y)", color=quadcolor[0])
         pl.xlabel("East")
@@ -145,8 +145,8 @@ class logger:
         pl.legend()
         pl.savefig('results/'+method+'_2D_pos.png')
         
-        #filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
-        #filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
+        filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
+        filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
 
         pl.figure(2)
         if method == 'PKF':
