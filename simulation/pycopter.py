@@ -140,15 +140,20 @@ class pycopter:
 
     def run(self, method, run_animation=False):
         if not (method == 'NF' or method == 'KF' or method == 'PF' or method == 'PKF' or \
-                method == 'NF4' or method == 'KF4' or method == 'PF4' or method == 'PKF4'):
+                method == 'NF4' or method == 'KF4' or method == 'PF4' or method == 'PKF4' or method == 'PF2' or method == 'PKF2'):
             print ("Wrong Input, your in put was: ", method)
             return -1
+        use = 4
         use4 = False
         if len(method) > 2:
-            if method == 'PKF4' or method == 'PKF':
+            if method == 'PKF4' or method == 'PKF' or method == 'PKF2':
                 if method == 'PKF4':
                     method = method[0:3]
                     use4 = True
+                elif method == 'PKF2':
+                    method = method[0:3]
+                    use4 = True
+                    use = 2  
             else:
                 use4 = True
                 method = method[0:2]
@@ -179,9 +184,9 @@ class pycopter:
                 self.UAV_agent.handle_range_msg(self.RA5.id, self.get_dist(self.UAV.xyz, self.uwb5.xyz))
                 self.UAV_agent.handle_range_msg(self.RA6.id, self.get_dist(self.UAV.xyz, self.uwb6.xyz))
                 if PFstarted and method == 'PF':
-                    self.UAV_agent.PFupdate(use4=use4)
+                    self.UAV_agent.PFupdate(use4=use4, use=use)
                 if PKFstarted and method == 'PKF':
-                    self.UAV_agent.updatePKF(use4=use4)
+                    self.UAV_agent.updatePKF(use4=use4, use=use)
                 if kalmanStarted and method == 'KF':
                     alg_pos = self.UAV_agent.calc_pos_alg(use4=use4)
 

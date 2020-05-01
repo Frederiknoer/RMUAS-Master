@@ -60,7 +60,7 @@ class uwb_agent:
             return ((self.time_taken_geo) / (self.time_instanes_geo))
         elif method == 'KF' or method == 'KF4':
             return [((self.time_taken_kf_predict) / (self.time_instanes_kf_predict)) ,  ((self.time_taken_kf_upd) / (self.time_instanes_kf_upd))]
-        elif method == 'PF' or method == 'PF4':
+        elif method == 'PF' or method == 'PF4' or method == 'PF2':
             return [((self.time_taken_pf_predict) / (self.time_instanes_pf_predict)) ,  ((self.time_taken_pf_upd) / (self.time_instanes_pf_upd)) , ((self.time_taken_pf_resamp) / (self.time_instanes_pf_resamp))]
         elif method == 'PKF' or method == 'PKF4':
             pass
@@ -77,14 +77,14 @@ class uwb_agent:
         self.time_taken_pf_predict += time.time() - prev_t
         self.time_instanes_pf_predict += 1
 
-    def PFupdate(self, use4):
+    def PFupdate(self, use4, use):
         prev_t = time.time()
         z = self.get_ranges()
         n=0
         if use4:
             a,b,c,d,e,f,g = self.anchors
             n = [a,b,c,d,e,f,g]
-            n,z = self.get_x_closest_nodes(n, z, x=4)
+            n,z = self.get_x_closest_nodes(n, z, x=use)
 
         self.PF.update(z=z, anchs=n, use4=use4)
         self.time_taken_pf_upd += time.time() - prev_t
@@ -129,8 +129,8 @@ class uwb_agent:
         kf_v = self.get_kf_state()[3:6]
         self.PFpredict(u=u, v=kf_v)
 
-    def updatePKF(self, use4):
-        self.PFupdate(use4)
+    def updatePKF(self, use4, use):
+        self.PFupdate(use4, use)
         pf_pos = self.getPFpos()
         self.UAV_KF.update(z=pf_pos)
 

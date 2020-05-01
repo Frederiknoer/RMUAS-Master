@@ -17,7 +17,7 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-n_of_sims = 35
+n_of_sims = 2
 
 
 class logger:
@@ -43,7 +43,7 @@ class logger:
             self.big_log_time = np.empty([1, 1, 0])
         elif method == 'KF' or method == 'KF4':
             self.big_log_time = np.empty([1, 2, 0])
-        elif method == 'PF' or method == 'PF4':
+        elif method == 'PF' or method == 'PF4' or method == 'PF2':
             self.big_log_time = np.empty([1, 3, 0])
         elif method == 'PKF' or method == 'PKF4':
             pass
@@ -61,7 +61,7 @@ class logger:
             self.big_log_est = np.insert(arr=self.big_log_est, obj=i, values=alg, axis=2)
             self.big_log_gt = np.insert(arr=self.big_log_gt, obj=i, values=UAV, axis=2)
 
-            if self.pos_method == 'PKF' or self.pos_method == 'PKF4':
+            if self.pos_method == 'PKF' or self.pos_method == 'PKF4' or self.pos_method == 'PKF2':
                 pass
             else:
                 self.big_log_time = np.insert( arr=self.big_log_time, obj=i, values=self.pycopter.UAV_agent.get_time_vals(self.pos_method), axis=2 )
@@ -80,14 +80,6 @@ class logger:
 
         self.gt_mean  = np.mean(self.big_log_gt, axis=2)
         self.gt_var   = np.var(self.big_log_gt, axis=2)
-
-        if self.pos_method == 'PKF' or self.pos_method == 'PKF4':
-                pass
-        else:
-            self.time_mean = np.mean(self.big_log_time, axis=2)
-            self.time_var = np.var(self.big_log_time, axis=2)
-            print("Mean of Operation Time: ", self.time_mean[0])
-            print("Var of Operation Time: ", self.time_var[0])
 
     '''
     def parse_data(self):
@@ -113,14 +105,35 @@ class logger:
         elif method == 'KF' or method == 'KF4':
             info1 = 'R: ' + str(R)
             info2 = 'Q: ' + str(Q)
-        elif method == 'PF' or method == 'PF4':
+        elif method == 'PF' or method == 'PF4' or method == 'PF2':
             info1 = 'Particles: ' + str(n_of_particles)
             info2 = 'Sigma P: ' + str(std_add)
-        elif method == 'PKF' or method == 'PKF4':
+        elif method == 'PKF' or method == 'PKF4' or method == 'PKF2':
             info1 = 'R: ' + str(R)
             info2 = 'Q: ' + str(Q)
             info3 = 'Particles: ' + str(n_of_particles)
             info4 = 'Sigma P: ' + str(std_add)
+
+        if self.pos_method == 'PKF' or self.pos_method == 'PKF4' or method == 'PKF2':
+            pass
+        else:
+            self.time_mean = np.mean(self.big_log_time, axis=2)
+            self.time_var = np.var(self.big_log_time, axis=2)
+            print("Mean of Operation Time: ", self.time_mean[0])
+            print("Var of Operation Time: ", self.time_var[0])
+        
+        print("Mean of Error(100-400): ", np.mean(self.Ed_mean[10000:40000]))
+        print("Mean of Var  (100-400): ", np.mean(self.Ed_var[10000:40000]))
+        if self.pos_method == 'PF' or self.pos_method == 'PF4' or self.pos_method == 'PF2':
+            print("N of Particles: ", n_of_particles)
+        elif self.pos_method == 'KF' or self.pos_method == 'KF4':
+            print("Q: ", Q)
+            print("R: ", R)
+        elif self.pos_method == 'PKF' or self.pos_method == 'PKF4' or self.pos_method == 'PKF2':
+            print("N of Particles: ", n_of_particles)
+            print("Q: ", Q)
+            print("R: ", R)
+
 
         '''
         fillerx1 = np.reshape( (self.est_mean[0,:]-self.est_var[0,:]), (self.n,))
@@ -150,9 +163,9 @@ class logger:
 
         pl.figure(2)
         if method == 'PKF':
-            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + " - " + info3 + " - " + info4+ "\n" + "Mean error(t=100->300): " + str(np.mean(self.Ed_mean[10000:30000])))
+            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + " - " + info3 + " - " + info4+ "\n" + "Mean error(t=100->400): " + str(np.mean(self.Ed_mean[10000:40000])))
         else:
-            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + "\n" + "Mean error(t=100->300): " + str(np.mean(self.Ed_mean[10000:30000])))
+            pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + "\n" + "Mean error(t=100->400): " + str(np.mean(self.Ed_mean[10000:40000])))
         pl.plot(self.time, self.Ed_mean, label="Distance: est_pos - true_pos", color=quadcolor[2])
         pl.fill_between( self.time, filler1, filler2, alpha=0.6)
         pl.ylim(-0.1,3)
@@ -196,6 +209,8 @@ if __name__ == "__main__":
         method_list = ['PF4', 'PF']
     elif c_in == 'PKF':
         method_list = ['PKF4', 'PKF']
+    elif c_in == '2':
+        method_list = ['PF2', 'PKF2']
 
     #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF']#, 'PKF4', 'PKF']
     #method_list = ['NF']#,'PKF'] #, 'PF4', 'KF', 'KF4']
