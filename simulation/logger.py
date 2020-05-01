@@ -186,7 +186,7 @@ class logger:
 
 
 if __name__ == "__main__":
-    
+
     c_in = sys.argv[1]
     if c_in == 'NF':
         method_list = ['NF4', 'NF']
@@ -196,9 +196,9 @@ if __name__ == "__main__":
         method_list = ['PF4', 'PF']
     elif c_in == 'PKF':
         method_list = ['PKF4', 'PKF']
-    
+
     #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF']#, 'PKF4', 'PKF']
-    #method_list = ['PKF'] #, 'PF4', 'KF', 'KF4']
+    #method_list = ['NF']#,'PKF'] #, 'PF4', 'KF', 'KF4']
     for method in method_list:
         l = logger(method)
         l.run_logger()

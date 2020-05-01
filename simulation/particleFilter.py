@@ -19,10 +19,10 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 2500 #7500
+            self.N = 1250 #2500
             self.upd_std_dev = 0.05 #2.2
         else: #PKF:
-            self.N = 2500 #10000
+            self.N = 1250 #25000
             self.upd_std_dev = 0.05 #2.2
 
         self.dt = dt
@@ -48,10 +48,11 @@ class particleFilter:
         self.particles[:, 3:] += u * self.dt + np.random.normal(mu, sigma_vel, (self.N, 3))
 
 
-    def update(self, z, anchs=0):
-        if anchs != 0:
+    def update(self, z, anchs=0, use4=False):
+        if use4:
             self.anchors = anchs
         p = self.particles
+
         for i, anchor in enumerate(self.anchors):
             est_dist = (((p[:,0] - anchor[0])**2 + (p[:,1]-anchor[1])**2 + (p[:,2]-anchor[2])**2)**0.5)
             prob = scipy.stats.norm( est_dist, self.upd_std_dev ).pdf(z[i])

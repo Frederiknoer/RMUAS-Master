@@ -84,9 +84,9 @@ class uwb_agent:
         if use4:
             a,b,c,d,e,f,g = self.anchors
             n = [a,b,c,d,e,f,g]
-            n,z = self.get_4_closest_nodes(n, z)
+            n,z = self.get_x_closest_nodes(n, z, x=4)
 
-        self.PF.update(z=z, anchs=n)
+        self.PF.update(z=z, anchs=n, use4=use4)
         self.time_taken_pf_upd += time.time() - prev_t
         self.time_instanes_pf_upd += 1
 
@@ -210,16 +210,16 @@ class uwb_agent:
         self.poslist = [A,B,C,D,E,F,G]
         return A, B, C, D, E, F, G
 
-    def get_4_closest_nodes(self, n, r):
+    def get_x_closest_nodes(self, n, r, x=4):
         idx = np.argsort(r)
         new_r = np.empty(len(r))
         new_n = np.empty((len(n),3))
-        #print("array before sort(r): ", r, "  (n): ", n)
+        #print("array before sort(r): \n", r, "\n(n): \n", n)
         for i in range(len(r-1)):
             new_r[i] = r[idx[i]]
             new_n[i] = n[idx[i]]
-        #print("array after sort(r): ", new_r, "  (n): ", new_n)
-        return n, r
+        #print("array after sort(r): \n", new_r[0:x], "\n(n): \n", new_n[0:x])
+        return new_n[0:x], new_r[0:x]
 
     def define_ground_plane(self):
         '''
@@ -289,8 +289,8 @@ class uwb_agent:
         r = self.get_ranges()
         n = np.array([a,b,c,d,e,f,g])
 
-        if use4:
-            n, r = self.get_4_closest_nodes(n,r)
+        #if use4:
+            #n, r = self.get_x_closest_nodes(n,r)
 
         for i in range(nodes):
             q[i] = (r[i]**2 - x[i]**2 - y[i]**2 - z[i]**2) / 2
