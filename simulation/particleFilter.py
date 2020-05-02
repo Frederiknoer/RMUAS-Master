@@ -19,11 +19,11 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 1250 #2500
-            self.upd_std_dev = 0.05 #2.2
+            self.N = 750 #2500
+            self.upd_std_dev = 0.035 #0.05
         else: #PKF:
-            self.N = 1250 #25000
-            self.upd_std_dev = 0.05 #2.2
+            self.N = 750 #25000
+            self.upd_std_dev = 0.035 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -43,7 +43,7 @@ class particleFilter:
         return self.N, self.upd_std_dev
 
     def predict(self, u, v=None):
-        mu, sigma_pos, sigma_vel = 0, 0.0025, 0.00002
+        mu, sigma_pos, sigma_vel = 0, 0.0005, 0.00001
         self.particles[:, :3] += self.particles[:, 3:]*self.dt + u[0]*((self.dt**2)/2) + np.random.normal(mu, sigma_pos, (self.N, 3))
         self.particles[:, 3:] += u * self.dt + np.random.normal(mu, sigma_vel, (self.N, 3))
 

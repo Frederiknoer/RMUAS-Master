@@ -118,9 +118,9 @@ class uwb_agent:
 
 
     # ***************** KALMAN PARTICLE FILTER FUNCTIONS *****************
-    def startPKF(self, acc, dt, xyz, v_ned):
+    def startPKF(self, acc, dt, xyz, v_ned, option=1):
         #print("STARTING PARTICLE KALMAN FILTER")
-        pf_val1, pf_val2 = self.startPF(v_ned, dt, option=1)
+        pf_val1, pf_val2 = self.startPF(v_ned, dt, option=option)
         kf_val1, kf_val2 = self.startKF(xyz, v_ned, dt, option=1)
         return kf_val1, kf_val2, pf_val1, pf_val2
 

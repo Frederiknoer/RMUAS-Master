@@ -17,7 +17,7 @@ import warnings
 warnings.simplefilter("ignore")
 
 
-n_of_sims = 2
+n_of_sims = 50
 
 
 class logger:
@@ -212,8 +212,8 @@ if __name__ == "__main__":
     elif c_in == '2':
         method_list = ['PF2', 'PKF2']
 
-    #method_list = ['NF', 'NF4', 'KF4', 'KF', 'PF4', 'PF']#, 'PKF4', 'PKF']
-    #method_list = ['NF']#,'PKF'] #, 'PF4', 'KF', 'KF4']
+    #method_list = ['NF4', 'NF', 'KF4', 'KF', 'PF4', 'PF', 'PKF4', 'PKF']
+    #method_list = ['PKF4', 'PF4']#,'PKF'] #, 'PF4', 'KF', 'KF4']
     for method in method_list:
         l = logger(method)
         l.run_logger()

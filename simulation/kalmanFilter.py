@@ -19,8 +19,8 @@ class KF:
             r = 2.5 #1.4
             cu = 0.0001 #0.00002
         elif option == 1:
-            r = 0.25
-            cu = 0.00002
+            r = 2.5
+            cu = 0.025
 
         dim_x = 6
         dim_u = 3
