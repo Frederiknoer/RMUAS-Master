@@ -16,12 +16,14 @@ class KF:
         self.dt = dt
 
         if option == 0:
-            r = 2.5 #1.4
-            cu = 0.0001 #0.00002
+            r = 2.5 #non flat: 0.15 || flat 2.5
+            cu = 0.0001 #on flat: 0.002 || flat 0.0001
         elif option == 1:
-            r = 2.5
+            r = 2.0
             cu = 0.025
 
+        #v_ned[:] = v_ned[:] + np.random.normal(0, 0.015, 1)[0]
+        #xyz[:] = xyz[:] + np.random.normal(0, 0.015, 1)[0]
         dim_x = 6
         dim_u = 3
         dim_z = 3

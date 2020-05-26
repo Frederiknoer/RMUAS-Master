@@ -196,16 +196,17 @@ class uwb_agent:
         return r
 
     def predefine_ground_plane(self):
-        d = self.d
+        d = 4.0
         dy = d * (np.sqrt(3)/2)
 
-        A = np.array([0.0, 0.0, 0.0])
-        B = np.array([d  , 0.0, 0.0])
+        A = np.array([0.0, 0.0, 0.10])
+        B = np.array([d,   0.0, 0.05])
         C = np.array([d/2, dy, 0.0])
-        D = np.array([d/2, -dy, 0.1])
+        D = np.array([d/2, -dy, 0.0])
+
         E = np.array([-(d/2), dy, 0.0])
-        F = np.array([-(d), 0.0, 0.0])
-        G = np.array([-(d/2), -dy, 0.05])
+        F = np.array([-d, 0.0, 0.05])
+        G = np.array([-(d/2), -dy, 0.0])
 
         self.poslist = [A,B,C,D,E,F,G]
         return A, B, C, D, E, F, G

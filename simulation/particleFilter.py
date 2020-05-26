@@ -19,11 +19,11 @@ class particleFilter:
         self.option = option
 
         if option == 0: #PF
-            self.N = 750 #2500
-            self.upd_std_dev = 0.035 #0.05
+            self.N = 1500 #2500
+            self.upd_std_dev = 0.04 #0.05
         else: #PKF:
-            self.N = 750 #25000
-            self.upd_std_dev = 0.035 #2.2
+            self.N = 1500 #25000
+            self.upd_std_dev = 0.04 #2.2
 
         self.dt = dt
         self.anchors = anchors
@@ -36,14 +36,16 @@ class particleFilter:
         self.particles[:,0] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,1] = np.random.uniform(-4.0, 4.0, size=self.N)
         self.particles[:,2] = np.random.uniform(-3.5, 0.5, size=self.N)
-        self.particles[:, 3:] = start_vel
+        self.particles[:,3] = self.vel_x
+        self.particles[:,4] = self.vel_y
+        self.particles[:,5] = self.vel_z
         #print("Particle Filter initiated with ", self.N, " Particles")
 
     def get_return_vals(self):
         return self.N, self.upd_std_dev
 
     def predict(self, u, v=None):
-        mu, sigma_pos, sigma_vel = 0, 0.0005, 0.00001
+        mu, sigma_pos, sigma_vel = 0, 0.0005, 0.00002
         self.particles[:, :3] += self.particles[:, 3:]*self.dt + u[0]*((self.dt**2)/2) + np.random.normal(mu, sigma_pos, (self.N, 3))
         self.particles[:, 3:] += u * self.dt + np.random.normal(mu, sigma_vel, (self.N, 3))
 
@@ -70,7 +72,7 @@ class particleFilter:
     def estimate(self):
         #return np.mean(self.particles, axis=0)
         #max_idx = np.argmax(self.weights)
-        idx = np.argsort(self.weights)[150:]
+        idx = np.argsort(self.weights)[200:]
         pos = np.mean(self.particles[idx], axis=0) #DOUBLE CHECK THIS MEAN FUNCTION
         #print(pos[0, :3])
         return pos[0, :3]

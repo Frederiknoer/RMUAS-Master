@@ -47,14 +47,14 @@ class pycopter:
         d = 4.0
         dy = d * (np.sqrt(3)/2)
 
-        xyz0_0 = np.array([0.0, 0.0, 0.0])
-        xyz1_0 = np.array([d,   0.0, 0.0])
+        xyz0_0 = np.array([0.0, 0.0, 0.1]) #4
+        xyz1_0 = np.array([d,   0.0, 0.05]) #1.5
         xyz2_0 = np.array([d/2, dy, 0.0])
-        xyz3_0 = np.array([d/2, -dy, 0.1])
+        xyz3_0 = np.array([d/2, -dy, 0.0])
 
         xyz4_0 = np.array([-(d/2), dy, 0.0])
-        xyz5_0 = np.array([-d, 0.0, 0.0])
-        xyz6_0 = np.array([-(d/2), -dy, 0.05])
+        xyz5_0 = np.array([-d, 0.0, 0.05]) #1.5
+        xyz6_0 = np.array([-(d/2), -dy, 0.0])
 
         xyz_uav_0 = np.array([1.0, 1.5, 0.0])
 
@@ -62,7 +62,7 @@ class pycopter:
         self.state = 0
         #wp = np.array([ [ 2,  2, -5 ], [ 2, -2, -5], [ -2, -2, -5 ], [-2,  2, -5] ])
         #wp = np.array([ [ d,  dy+1, -3 ], [ d, -(dy+1), -3 ], [ -1, -(dy+1), -3 ], [-1,  dy+1, -3 ] ])
-        self.wp = np.array([ [ d,  dy+1, -3 ], [ d, -dy+1, -3 ], [ -1, -dy-1, -3 ], [-1,  dy+1, -3 ] ])
+        self.wp = np.array([ [ d,  dy+1, -3 ], [ d, -dy+1, -3 ], [ -3, -dy-1, -3 ], [-4,  dy+1, -3 ] ])
 
 
         v_ned_0 = np.array([0.0, 0.0, 0.0])
@@ -108,6 +108,8 @@ class pycopter:
         #self.gt_pos  = np.zeros((self.time.size, 3))
 
         self.Ed_log = np.zeros((self.time.size, 1))
+        self.Ed2d_log = np.zeros((self.time.size, 1))
+        self.Edalt_log = np.zeros((self.time.size, 1))
         self.Ed_vel_log = np.zeros((self.time.size, 1))
         self.eig_log = np.zeros((self.time.size, 3))
 
@@ -172,7 +174,7 @@ class pycopter:
         frames = self.frames
 
         for t in self.time:
-            acc_err = np.random.normal(0, 0.002, 1)[0]
+            acc_err = np.random.normal(0, 0.012, 1)[0]
             #HANDLE RANGE MEASUREMENTS:
             if it % 50 == 0 or it == 0: # or method == 'NF':
                 #print(t)
@@ -264,6 +266,8 @@ class pycopter:
             #self.gt_pos[it]  = self.UAV.xyz
             if kalmanStarted or PFstarted or PKFstarted or method == 'NF':
                 self.Ed_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.xyz) ])
+                self.Ed2d_log[it, :] = np.array([ self.get_dist_clean(alg_pos[0:2], self.UAV.xyz[0:2]) ])
+                self.Edalt_log[it, :] = np.array([ self.get_dist_clean(alg_pos[2], self.UAV.xyz[2]) ])
                 self.Ed_vel_log[it, :] = np.array([ self.get_dist_clean(alg_pos, self.UAV.v_ned) ])
                 self.alg_log.xyz_h[it, :] = alg_pos
             self.UAV_log.xyz_h[it, :] = self.UAV.xyz
@@ -307,4 +311,4 @@ class pycopter:
         alg_log = np.array([self.alg_log.xyz_h[:,0], self.alg_log.xyz_h[:,1], self.alg_log.xyz_h[:,2]])
         uav_log = np.array([self.UAV_log.xyz_h[:,0], self.UAV_log.xyz_h[:,1], self.UAV_log.xyz_h[:,2]])
         #print(self.Ed_log)
-        return [uav_log, alg_log, self.Ed_log]
+        return [uav_log, alg_log, self.Ed_log, self.Ed2d_log, self.Edalt_log]

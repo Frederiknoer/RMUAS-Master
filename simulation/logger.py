@@ -35,9 +35,11 @@ class logger:
         self.n = int(self.tf/self.dt)
 
         #LOGS:
-        self.big_log_Ed  = np.empty([self.n, 1, 0], dtype=np.float32)
-        self.big_log_est = np.empty([3, self.n, 0], dtype=np.float32)
-        self.big_log_gt  = np.empty([3, self.n, 0], dtype=np.float32)
+        self.big_log_Ed    = np.empty([self.n, 1, 0], dtype=np.float32)
+        self.big_log_Ed2d  = np.empty([self.n, 1, 0], dtype=np.float32)
+        self.big_log_Edalt = np.empty([self.n, 1, 0], dtype=np.float32)
+        self.big_log_est   = np.empty([3, self.n, 0], dtype=np.float32)
+        self.big_log_gt    = np.empty([3, self.n, 0], dtype=np.float32)
 
         if method == 'NF' or method == 'NF4':
             self.big_log_time = np.empty([1, 1, 0])
@@ -55,11 +57,13 @@ class logger:
         for i in range(self.N):
             print("Starting simulation #", i+1, " of #", self.N)
             self.pycopter = pycopter_class.pycopter(self.tf, self.dt)
-            UAV, alg, ed = self.pycopter.run(method=self.pos_method, run_animation=self.run_animation) 
+            UAV, alg, ed, ed2d, edalt = self.pycopter.run(method=self.pos_method, run_animation=self.run_animation) 
             
-            self.big_log_Ed = np.insert(arr=self.big_log_Ed, obj=i, values=ed, axis=2)
-            self.big_log_est = np.insert(arr=self.big_log_est, obj=i, values=alg, axis=2)
-            self.big_log_gt = np.insert(arr=self.big_log_gt, obj=i, values=UAV, axis=2)
+            self.big_log_Ed   = np.insert(arr=self.big_log_Ed, obj=i, values=ed, axis=2)
+            self.big_log_Ed2d = np.insert(arr=self.big_log_Ed2d, obj=i, values=ed2d, axis=2)
+            self.big_log_Edalt   = np.insert(arr=self.big_log_Edalt, obj=i, values=edalt, axis=2)
+            self.big_log_est  = np.insert(arr=self.big_log_est, obj=i, values=alg, axis=2)
+            self.big_log_gt   = np.insert(arr=self.big_log_gt, obj=i, values=UAV, axis=2)
 
             if self.pos_method == 'PKF' or self.pos_method == 'PKF4' or self.pos_method == 'PKF2':
                 pass
@@ -73,13 +77,19 @@ class logger:
     def calc_statistics(self):
         #Calculate statistics:
         self.Ed_mean  = np.mean(self.big_log_Ed, axis=2)
-        self.Ed_var   = np.var(self.big_log_Ed, axis=2)
+        self.Ed_var   = np.std(self.big_log_Ed, axis=2)
+
+        self.Ed2d_mean  = np.mean(self.big_log_Ed2d, axis=2)
+        self.Ed2d_var   = np.std(self.big_log_Ed2d, axis=2)
+
+        self.Edalt_mean  = np.mean(self.big_log_Edalt, axis=2)
+        self.Edalt_var   = np.std(self.big_log_Edalt, axis=2)
 
         self.est_mean = np.mean(self.big_log_est, axis=2)
-        self.est_var  = np.var(self.big_log_est, axis=2)
+        self.est_var  = np.std(self.big_log_est, axis=2)
 
         self.gt_mean  = np.mean(self.big_log_gt, axis=2)
-        self.gt_var   = np.var(self.big_log_gt, axis=2)
+        self.gt_var   = np.std(self.big_log_gt, axis=2)
 
     '''
     def parse_data(self):
@@ -167,13 +177,14 @@ class logger:
         else:
             pl.title(method+" Error Dist[m] - " + info1 + " - " + info2 + "\n" + "Mean error(t=100->400): " + str(np.mean(self.Ed_mean[10000:40000])))
         pl.plot(self.time, self.Ed_mean, label="Distance: est_pos - true_pos", color=quadcolor[2])
-        pl.fill_between( self.time, filler1, filler2, alpha=0.6)
-        pl.ylim(-0.1,3)
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5, facecolor=quadcolor[2], edgecolor='none')
+        pl.yscale("log")
         pl.xlabel("Time [s]")
-        pl.ylabel("Formation distance error [m]")
-        pl.grid()
+        pl.ylabel("Error Distance [m]")
+        pl.grid(which='both')
+        pl.ylim(10e-4, 10e-0)
         pl.legend()
-        pl.savefig('results/'+method+'_err_pos.png')
+        pl.savefig('results/'+method+'_err_pos.png', orientation='landscape', dpi=1000)
         
         filler1 = np.reshape( (self.est_mean[2,:]-self.est_var[2:,]), (self.n,))
         filler2 = np.reshape( (self.est_mean[2,:]+self.est_var[2:,]), (self.n,))
@@ -185,7 +196,7 @@ class logger:
             pl.title(method+" Altitude[m] - " + info1 + " - " + info2)
 
         pl.plot(self.time, self.est_mean[2,:], label="est_alt", color=quadcolor[2])
-        pl.fill_between( self.time, filler1, filler2, alpha=0.6)
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5)
 
         pl.plot(self.time, self.gt_mean[2,:], label="Ground Truth(alt)", color=quadcolor[0])
         pl.ylim(-5, 1)
@@ -193,27 +204,73 @@ class logger:
         pl.ylabel("Altitude [m]")
         pl.grid()
         pl.legend(loc=2)
-        pl.savefig('results/'+method+'_alt.png')
+        pl.savefig('results/'+method+'_alt.png', orientation='landscape', dpi=1000)
+
+        filler1 = np.reshape( (self.Ed2d_mean[:]-self.Ed2d_var[:]), (self.n,))
+        filler2 = np.reshape( (self.Ed2d_mean[:]+self.Ed2d_var[:]), (self.n,))
+
+        pl.figure(4)
+        if method == 'PKF':
+            pl.title(method+" Error Dist 2D[m] - " + info1 + " - " + info2 + " - " + info3 + " - " + info4+ "\n" + "Mean error(t=100->400): " + str(np.mean(self.Ed2d_mean[10000:40000])))
+        else:
+            pl.title(method+" Error Dist 2D[m] - " + info1 + " - " + info2 + "\n" + "Mean error(t=100->400): " + str(np.mean(self.Ed2d_mean[10000:40000])))
+        pl.plot(self.time, self.Ed2d_mean, label="XY-Error Distance", color=quadcolor[1])
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5, facecolor=quadcolor[1], edgecolor='none')
+        pl.yscale("log")
+        pl.xlabel("Time [s]")
+        pl.ylabel("Error Distance [m]")
+        pl.grid(which='both')
+        pl.ylim(10e-4, 10e-0)
+        pl.legend()
+        pl.savefig('results/'+method+'2d_err_pos.png', orientation='landscape') #, dpi=1000
+
+
+        pl.figure(5)
+        pl.title(method+" Error Distances [m]")
+
+        filler1 = np.reshape( (self.Edalt_mean[:]-self.Edalt_var[:]), (self.n,))
+        filler2 = np.reshape( (self.Edalt_mean[:]+self.Edalt_var[:]), (self.n,))
+        pl.plot(self.time, self.Edalt_mean, label="Alt-Error Distance", color=quadcolor[0])
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5, facecolor=quadcolor[0], edgecolor='none')
+
+        filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
+        filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
+        pl.plot(self.time, self.Ed2d_mean, label="XY-Error Distance", color=quadcolor[1])
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5, facecolor=quadcolor[1], edgecolor='none')
+
+        filler1 = np.reshape( (self.Ed_mean[:]-self.Ed_var[:]), (self.n,))
+        filler2 = np.reshape( (self.Ed_mean[:]+self.Ed_var[:]), (self.n,))
+        pl.plot(self.time, self.Ed_mean, label="3D-Error Distance", color=quadcolor[2])
+        pl.fill_between( self.time, filler1, filler2, alpha=0.5, facecolor=quadcolor[2], edgecolor='none')
+        
+        pl.yscale("log")
+        pl.xlabel("Time [s]")
+        pl.ylabel("Error Distance [m]")
+        pl.grid(which='both')
+        pl.ylim(10e-4, 10e-0)
+        pl.legend()
+
+        pl.savefig('results/'+method+'combined_err_pos.pdf', orientation='landscape', dpi=1000)
 
         #pl.pause(0)
 
 
 if __name__ == "__main__":
-
+    
     c_in = sys.argv[1]
     if c_in == 'NF':
-        method_list = ['NF4', 'NF']
+        method_list = ['NF', 'NF4']
     elif c_in == 'KF':
-        method_list = ['KF4', 'KF']
+        method_list = ['KF', 'KF4']
     elif c_in == 'PF':
-        method_list = ['PF4', 'PF']
+        method_list = ['PF', 'PF4']
     elif c_in == 'PKF':
-        method_list = ['PKF4', 'PKF']
+        method_list = ['PKF', 'PKF4']
     elif c_in == '2':
         method_list = ['PF2', 'PKF2']
-
-    #method_list = ['NF4', 'NF', 'KF4', 'KF', 'PF4', 'PF', 'PKF4', 'PKF']
-    #method_list = ['PKF4', 'PF4']#,'PKF'] #, 'PF4', 'KF', 'KF4']
+    
+    #method_list = ['NF']
+    #method_list = ['NF', 'KF', 'PF']
     for method in method_list:
         l = logger(method)
         l.run_logger()
